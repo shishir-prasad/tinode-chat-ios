@@ -150,7 +150,7 @@ class LoginViewController: UIViewController {
         do {
             try tinode.connectDefault(inBackground: false)?
                 .thenApply({ _ in
-                        return tinode.loginBasic(uname: userName, password: password)
+                        return tinode.loginSSO(token: "a9035f5099e084a51705845badbfd67c1ec3c8ede76b18fba688812ae9c8e3dc")
                     })
                 .then(
                     onSuccess: { [weak self] pkt in

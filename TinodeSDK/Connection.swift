@@ -64,9 +64,17 @@ public class Connection: WebSocketConnectionDelegate {
         } else {
             endpointComponenets.scheme = "ws"
         }
-        if endpointComponenets.port == nil {
-            endpointComponenets.port = useTLS ? 443 : 80
-        }
+
+        // Add API key as query parameter
+        var queryItems = endpointComponenets.queryItems ?? []
+        queryItems.append(URLQueryItem(name: "apikey", value: apiKey))
+        endpointComponenets.queryItems = queryItems
+
+        // Remove automatic port assignment - let URLComponents handle defaults
+        // if endpointComponenets.port == nil {
+        //     endpointComponenets.port = useTLS ? 443 : 80
+        // }
+
         self.webSocketConnection = WebSocket(timeout: kConnectionTimeout, delegate: self)
         maybeInitReconnectClosure()
     }
@@ -118,7 +126,8 @@ public class Connection: WebSocketConnectionDelegate {
 
     private func createUrlRequest() throws -> URLRequest {
         var request = URLRequest(url: endpointComponenets.url!)
-        request.addValue(apiKey, forHTTPHeaderField: "X-Tinode-APIKey")
+        // API key is now in URL query parameters, no need for header
+        // request.addValue(apiKey, forHTTPHeaderField: "X-Tinode-APIKey")
         return request
     }
 

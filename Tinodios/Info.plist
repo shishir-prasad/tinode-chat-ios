@@ -72,5 +72,7 @@
 	<true/>
 	<key>USE_TLS</key>
 	<string>$(USE_TLS)</string>
+	<key>TINODE_API_KEY</key>
+	<string>AQAAAAABAAByCoXpLdVgii7-77YqZ6S4</string>
 </dict>
 </plist>

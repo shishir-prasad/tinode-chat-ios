@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyB-7Z5fHG1CapbZLS6Oe98K0l3YBdmg61E</string>
+	<key>GCM_SENDER_ID</key>
+	<string>379802655853</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>co.tinode.tinodios</string>
+	<key>PROJECT_ID</key>
+	<string>tinode-ad5c6</string>
+	<key>STORAGE_BUCKET</key>
+	<string>tinode-ad5c6.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:379802655853:ios:cb1948b9eef10d72eaf364</string>
+</dict>
+</plist>

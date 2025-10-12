@@ -919,6 +919,10 @@ public class Tinode {
     public func setAutoLoginWithToken(token: String) {
         setAutoLogin(using: AuthScheme.kLoginToken, authenticateWith: token)
     }
+    
+    public func setAutoLoginWithSSO(token: String) {
+        setAutoLogin(using: AuthScheme.kLoginSSO, authenticateWith: token.toBase64() ?? token)
+    }
 
     public func loginBasic(uname: String, password: String) -> PromisedReply<ServerMessage> {
         var encodedToken: String
@@ -933,6 +937,11 @@ public class Tinode {
 
     public func loginToken(token: String, creds: [Credential]?) -> PromisedReply<ServerMessage> {
         return login(scheme: AuthScheme.kLoginToken, secret: token, creds: creds)
+    }
+    
+    public func loginSSO(token: String) -> PromisedReply<ServerMessage> {
+        let encodedToken = token.toBase64() ?? token
+        return login(scheme: AuthScheme.kLoginSSO, secret: encodedToken, creds: nil)
     }
 
     public func login(scheme: String, secret: String, creds: [Credential]?) -> PromisedReply<ServerMessage> {

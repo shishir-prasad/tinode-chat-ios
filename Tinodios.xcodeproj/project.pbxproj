@@ -66,6 +66,7 @@
 		6AB6957DBFD1FB12CA01DCE4 /* libPods-Tinodios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5E30BDE2C5D7E82671DD7DE4 /* libPods-Tinodios.a */; };
 		7DDADC5221D5C219009733B5 /* ValidatedCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DDADC5121D5C219009733B5 /* ValidatedCredential.swift */; };
 		7DDADC5421D5C2E6009733B5 /* CredentialsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DDADC5321D5C2E6009733B5 /* CredentialsViewController.swift */; };
+		8794C15E2E9A25B40012FF0B /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 8794C15D2E9A25B40012FF0B /* GoogleService-Info.plist */; };
 		B008593C22741B8A002C5168 /* FullFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008593B22741B89002C5168 /* FullFormatter.swift */; };
 		B00CB5F629D7461B00BFE5C2 /* PinnedMessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00CB5F529D7461B00BFE5C2 /* PinnedMessagesView.swift */; };
 		B0125998229C982900688FCE /* ContactViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0125996229C982900688FCE /* ContactViewCell.swift */; };
@@ -94,7 +95,6 @@
 		B052ABCF2863F81500A7D550 /* call-out.m4a in Resources */ = {isa = PBXBuildFile; fileRef = B052ABCE2863F81500A7D550 /* call-out.m4a */; };
 		B052ABD12863F82000A7D550 /* dialing.m4a in Resources */ = {isa = PBXBuildFile; fileRef = B052ABD02863F82000A7D550 /* dialing.m4a */; };
 		B05ACEB322FDAB5200276713 /* ResetPasswordViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05ACEB222FDAB5200276713 /* ResetPasswordViewController.swift */; };
-		B079062523EEA0C90019ED75 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B079062423EEA0C90019ED75 /* GoogleService-Info.plist */; };
 		B081B27F29D621380026089C /* DotSelectorImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B081B27E29D621380026089C /* DotSelectorImageView.swift */; };
 		B081B28129D638850026089C /* PagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B081B28029D638850026089C /* PagerView.swift */; };
 		B081B28329D6512E0026089C /* PagerViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B081B28229D6512E0026089C /* PagerViewCell.swift */; };
@@ -251,6 +251,7 @@
 		75BC852198885F22E865D563 /* Pods-Tinodios.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Tinodios.debug.xcconfig"; path = "Pods/Target Support Files/Pods-Tinodios/Pods-Tinodios.debug.xcconfig"; sourceTree = "<group>"; };
 		7DDADC5121D5C219009733B5 /* ValidatedCredential.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ValidatedCredential.swift; sourceTree = "<group>"; };
 		7DDADC5321D5C2E6009733B5 /* CredentialsViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CredentialsViewController.swift; sourceTree = "<group>"; };
+		8794C15D2E9A25B40012FF0B /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		8941EC0EF6DEEA661A222467 /* libPods-TinodiosUITests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-TinodiosUITests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		B008593B22741B89002C5168 /* FullFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullFormatter.swift; sourceTree = "<group>"; };
 		B00CB5F529D7461B00BFE5C2 /* PinnedMessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedMessagesView.swift; sourceTree = "<group>"; };
@@ -292,7 +293,6 @@
 		B052ABCE2863F81500A7D550 /* call-out.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; path = "call-out.m4a"; sourceTree = "<group>"; };
 		B052ABD02863F82000A7D550 /* dialing.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; path = dialing.m4a; sourceTree = "<group>"; };
 		B05ACEB222FDAB5200276713 /* ResetPasswordViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetPasswordViewController.swift; sourceTree = "<group>"; };
-		B079062423EEA0C90019ED75 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		B081B27E29D621380026089C /* DotSelectorImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DotSelectorImageView.swift; sourceTree = "<group>"; };
 		B081B28029D638850026089C /* PagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagerView.swift; sourceTree = "<group>"; };
 		B081B28229D6512E0026089C /* PagerViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagerViewCell.swift; sourceTree = "<group>"; };
@@ -405,7 +405,6 @@
 			children = (
 				B052ABD22863F83500A7D550 /* audio */,
 				B0CF83E2244E074A00E79D22 /* Localizable.strings */,
-				B079062423EEA0C90019ED75 /* GoogleService-Info.plist */,
 				B01120B72357469300EFCB1F /* devel.xcconfig */,
 				B01120B8235746BF00EFCB1F /* prod.xcconfig */,
 				0A431C022244A26200A837F7 /* TinodeSDK.framework */,
@@ -494,6 +493,7 @@
 				B031BE542263075E004160AE /* Settings.bundle */,
 				0A0380E921B3CCB000A3FA0E /* Supporting Files */,
 				0A0380E321B3CC8200A3FA0E /* Info.plist */,
+				8794C15D2E9A25B40012FF0B /* GoogleService-Info.plist */,
 				B0BE301A27B3367E00B04631 /* InfoPlist.strings */,
 			);
 			path = Tinodios;
@@ -758,7 +758,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B079062523EEA0C90019ED75 /* GoogleService-Info.plist in Resources */,
 				B0125999229C982900688FCE /* ContactViewCell.xib in Resources */,
 				B031BE552263075E004160AE /* Settings.bundle in Resources */,
 				B0CF83E0244E074A00E79D22 /* Localizable.strings in Resources */,
@@ -778,6 +777,7 @@
 				0A0380DF21B3CC8200A3FA0E /* Assets.xcassets in Resources */,
 				0A0380DD21B3CC8100A3FA0E /* Main.storyboard in Resources */,
 				B026F243257C59CA003BA14B /* ProgressView.xib in Resources */,
+				8794C15E2E9A25B40012FF0B /* GoogleService-Info.plist in Resources */,
 				0A8D945822BEED3700DC154E /* AvatarWithOnlineIndicator.xib in Resources */,
 				B0BE302427B831BD00B04631 /* TagsEditDialogView.xib in Resources */,
 			);

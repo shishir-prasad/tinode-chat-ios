@@ -15,7 +15,8 @@ public struct AuthScheme {
     static let kLoginToken = "token"
     static let kLoginReset = "reset"
     static let kLoginCode  = "code"
-
+static let kLoginSSO = "sso"
+    
     let scheme: String
     let secret: String
 
@@ -29,7 +30,7 @@ public struct AuthScheme {
             let parts = data.split(separator: ":")
             if parts.count == 2 {
                 let scheme = String(parts[0])
-                if scheme == kLoginBasic || scheme == kLoginToken {
+                if scheme == kLoginBasic || scheme == kLoginToken || scheme == kLoginSSO {
                     return AuthScheme(scheme: scheme, secret: String(parts[1]))
                 }
             } else {
@@ -74,6 +75,9 @@ public struct AuthScheme {
 
     static func tokenInstance(secret: String) -> AuthScheme {
         return AuthScheme(scheme: kLoginToken, secret: secret)
+    }
+    static func ssoInstance(token: String) -> AuthScheme {
+        return AuthScheme(scheme: kLoginSSO, secret: token.toBase64()!)
     }
 
     public static func codeInstance(code: String, method: String, value: String) throws -> AuthScheme {

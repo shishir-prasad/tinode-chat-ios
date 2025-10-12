@@ -6,13 +6,15 @@
 #include "Pods/Target Support Files/Pods-Tinodios/Pods-Tinodios.release.xcconfig"
 
 // Server URL
-HOST_NAME = api.tinode.co
+HOST_NAME = fochat-dev.saleswarp.com
 // Use TLS (https, wss)
-USE_TLS = YES
+USE_TLS = NO
 
 // App Settings
-APP_NAME = Tinode
+APP_NAME = QixSecure BCP
 
 // Versioning. The values are automatically updated by a build script.
-GIT_TAG = 1.24.3
-GIT_COMMIT_COUNT = 1828
+GIT_TAG = 4db1251549c40b7aa4f269cd79234eb4c07baff
+GIT_COMMIT_COUNT = 1830
+
+TINODE_API_KEY = AQAAAAABAAByCoXpLdVgii7-77YqZ6S4
