@@ -14,7 +14,7 @@ class SettingsSecurityViewController: UITableViewController {
     @IBOutlet weak var authPermissionsLabel: UILabel!
     @IBOutlet weak var anonPermissionsLabel: UILabel!
 
-    @IBOutlet weak var actionChangePassword: UITableViewCell!
+//    @IBOutlet weak var actionChangePassword: UITableViewCell!
     @IBOutlet weak var actionLogOut: UITableViewCell!
     @IBOutlet weak var actionDeleteAccount: UITableViewCell!
 
@@ -46,10 +46,10 @@ class SettingsSecurityViewController: UITableViewController {
             forView: anonUsersPermissions,
             action: #selector(SettingsSecurityViewController.permissionsTapped),
             actionTarget: self)
-        UiUtils.setupTapRecognizer(
-            forView: actionChangePassword,
-            action: #selector(SettingsSecurityViewController.changePasswordClicked),
-            actionTarget: self)
+//        UiUtils.setupTapRecognizer(
+//            forView: actionChangePassword,
+//            action: #selector(SettingsSecurityViewController.changePasswordClicked),
+//            actionTarget: self)
         UiUtils.setupTapRecognizer(
             forView: actionLogOut,
             action: #selector(SettingsSecurityViewController.logoutClicked),
@@ -113,23 +113,23 @@ class SettingsSecurityViewController: UITableViewController {
         }, disabledPermissions: "ODS")
     }
 
-    @objc func changePasswordClicked(sender: UITapGestureRecognizer) {
-        let alert = UIAlertController(title: NSLocalizedString("Change Password", comment: "Alert title"), message: nil, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: NSLocalizedString("Cancel", comment: ""), style: .cancel, handler: nil))
-        alert.addTextField(configurationHandler: { textField in
-            textField.placeholder = NSLocalizedString("Enter new password", comment: "Alert prompt")
-            textField.textContentType = .newPassword
-            textField.showSecureEntrySwitch()
-        })
-        alert.addAction(UIAlertAction(
-            title: NSLocalizedString("OK", comment: ""), style: .default,
-            handler: { _ in
-                if let newPassword = alert.textFields?.first?.text {
-                    self.updatePassword(with: newPassword)
-                }
-            }))
-        self.present(alert, animated: true)
-    }
+//    @objc func changePasswordClicked(sender: UITapGestureRecognizer) {
+//        let alert = UIAlertController(title: NSLocalizedString("Change Password", comment: "Alert title"), message: nil, preferredStyle: .alert)
+//            alert.addAction(UIAlertAction(title: NSLocalizedString("Cancel", comment: ""), style: .cancel, handler: nil))
+//        alert.addTextField(configurationHandler: { textField in
+//            textField.placeholder = NSLocalizedString("Enter new password", comment: "Alert prompt")
+//            textField.textContentType = .newPassword
+//            textField.showSecureEntrySwitch()
+//        })
+//        alert.addAction(UIAlertAction(
+//            title: NSLocalizedString("OK", comment: ""), style: .default,
+//            handler: { _ in
+//                if let newPassword = alert.textFields?.first?.text {
+//                    self.updatePassword(with: newPassword)
+//                }
+//            }))
+//        self.present(alert, animated: true)
+//    }
 
     @objc func logoutClicked(sender: UITapGestureRecognizer) {
         let alert = UIAlertController(title: nil, message: NSLocalizedString("Are you sure you want to log out?", comment: "Warning in logout alert"), preferredStyle: .alert)
