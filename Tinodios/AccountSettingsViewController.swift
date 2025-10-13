@@ -21,8 +21,8 @@ class AccountSettingsViewController: UITableViewController {
 
     @IBOutlet weak var avatarImageView: RoundImageView!
     @IBOutlet weak var userNameLabel: UILabel!
-    @IBOutlet weak var aliasLabel: UILabel!
-    @IBOutlet weak var descriptionLabel: UILabel!
+//    @IBOutlet weak var aliasLabel: UILabel!
+//    @IBOutlet weak var descriptionLabel: UILabel!
     
     weak var tinode: Tinode!
     weak var me: DefaultMeTopic!
@@ -51,12 +51,12 @@ class AccountSettingsViewController: UITableViewController {
         self.avatarImageView.set(pub: me.pub, id: self.tinode.myUid, deleted: false)
         self.avatarImageView.letterTileFont = self.avatarImageView.letterTileFont.withSize(CGFloat(50))
 
-        self.descriptionLabel.text = me.pub?.note ?? me.tags?.joined(separator: ", ")
+//        self.descriptionLabel.text = me.pub?.note ?? me.tags?.joined(separator: ", ")
 
         // My UID/Address label.
 
-        self.aliasLabel.text = "@\(me.alias ?? "")"
-        self.aliasLabel.sizeToFit()
+//        self.aliasLabel.text = "@\(me.alias ?? "")"
+//        self.aliasLabel.sizeToFit()
     }
 
     @IBAction func copyTopicValue(_ sender: UIButton) {
