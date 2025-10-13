@@ -26,12 +26,11 @@ public class SharedUtils {
     static public let kTinodePrefAppId = "tinodePrefAppId"
     static public let kTinodePrefSmallIcon = "tinodePrefSmallIcon"
     static public let kTinodePrefLargeIcon = "tinodePrefLargeIcon"
-
     static public let kPrefHostName = "host_name_preference"
     static public let kPrefUseTLS = "use_tls_preference"
 
     // App Tinode api key.
-    private static let kApiKey = "AQEAAAABAAD_rAp4DJh05a1HAwFT3A6K"
+    private static let kApiKey = "AQAAAAABAAByCoXpLdVgii7-77YqZ6S4"
 
     static public let kAppDefaults = UserDefaults(suiteName: BaseDb.kAppGroupId)!
     static let kAppKeychain = KeychainWrapper(serviceName: "co.tinode.tinodios", accessGroup: BaseDb.kAppGroupId)

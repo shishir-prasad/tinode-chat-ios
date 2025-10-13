@@ -8,13 +8,13 @@
 // Server URL
 HOST_NAME = fochat-dev.saleswarp.com
 // Use TLS (https, wss)
-USE_TLS = NO
+USE_TLS = YES
 
 // App Settings
 APP_NAME = QixSecure BCP
 
 // Versioning. The values are automatically updated by a build script.
-GIT_TAG = 4db1251549c40b7aa4f269cd79234eb4c07baff
-GIT_COMMIT_COUNT = 1830
+GIT_TAG = 827681c4dff59d19248811f19813202d571fc21
+GIT_COMMIT_COUNT = 1831
 
 TINODE_API_KEY = AQAAAAABAAByCoXpLdVgii7-77YqZ6S4

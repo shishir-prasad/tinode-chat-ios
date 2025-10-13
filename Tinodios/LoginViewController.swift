@@ -19,7 +19,7 @@ class LoginViewController: UIViewController {
     @IBOutlet weak var logoView: UIImageView!
     @IBOutlet weak var serviceNameLabel: UILabel!
     @IBOutlet weak var poweredByStack: UIStackView!
-    @IBOutlet weak var configureConnectionButton: UIButton!
+
 
     override func loadView() {
         super.loadView()
@@ -45,10 +45,10 @@ class LoginViewController: UIViewController {
         if SharedUtils.appId != nil {
             // Branding is configured. Show "Powered by" view, hide configureConnectionButton.
             self.poweredByStack.isHidden = false
-            self.configureConnectionButton.isHidden = true
+
         } else {
             // Branding is not configured. Show "Configure connection" button, hide "Powered by" view.
-            self.configureConnectionButton.isHidden = false
+
             self.poweredByStack.isHidden = true
         }
         if let logo = SharedUtils.smallIcon {
@@ -130,7 +130,7 @@ class LoginViewController: UIViewController {
     @objc func brandingConfigAvailable(_ notification: Notification) {
         DispatchQueue.main.async {
             if SharedUtils.appId != nil {
-                self.configureConnectionButton.isHidden = true
+
                 self.poweredByStack.isHidden = false
             }
             if let serviceName = SharedUtils.serviceName {
@@ -150,7 +150,7 @@ class LoginViewController: UIViewController {
         do {
             try tinode.connectDefault(inBackground: false)?
                 .thenApply({ _ in
-                        return tinode.loginSSO(token: "a9035f5099e084a51705845badbfd67c1ec3c8ede76b18fba688812ae9c8e3dc")
+                        return tinode.loginSSO(token: "872fce0f1aabd123b62837705c6d7e991c110eb5c0051c9499e533de35856cfa")
                     })
                 .then(
                     onSuccess: { [weak self] pkt in

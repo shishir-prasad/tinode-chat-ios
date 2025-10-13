@@ -8,7 +8,7 @@
 // Server URL
 HOST_NAME = fochat-dev.saleswarp.com
 // Use TLS (https, wss)
-USE_TLS = no
+USE_TLS = YES
 
 // App Settings
 APP_NAME = QixSecure BCP
