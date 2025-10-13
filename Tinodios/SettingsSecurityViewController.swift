@@ -9,10 +9,10 @@ import TinodiosDB
 import UIKit
 
 class SettingsSecurityViewController: UITableViewController {
-    @IBOutlet weak var authUsersPermissions: UITableViewCell!
-    @IBOutlet weak var anonUsersPermissions: UITableViewCell!
-    @IBOutlet weak var authPermissionsLabel: UILabel!
-    @IBOutlet weak var anonPermissionsLabel: UILabel!
+//    @IBOutlet weak var authUsersPermissions: UITableViewCell!
+//    @IBOutlet weak var anonUsersPermissions: UITableViewCell!
+//    @IBOutlet weak var authPermissionsLabel: UILabel!
+//    @IBOutlet weak var anonPermissionsLabel: UILabel!
 
 //    @IBOutlet weak var actionChangePassword: UITableViewCell!
     @IBOutlet weak var actionLogOut: UITableViewCell!
@@ -38,14 +38,14 @@ class SettingsSecurityViewController: UITableViewController {
         self.tinode = Cache.tinode
         self.me = self.tinode.getMeTopic()!
 
-        UiUtils.setupTapRecognizer(
-            forView: authUsersPermissions,
-            action: #selector(SettingsSecurityViewController.permissionsTapped),
-            actionTarget: self)
-        UiUtils.setupTapRecognizer(
-            forView: anonUsersPermissions,
-            action: #selector(SettingsSecurityViewController.permissionsTapped),
-            actionTarget: self)
+//        UiUtils.setupTapRecognizer(
+//            forView: authUsersPermissions,
+//            action: #selector(SettingsSecurityViewController.permissionsTapped),
+//            actionTarget: self)
+//        UiUtils.setupTapRecognizer(
+//            forView: anonUsersPermissions,
+//            action: #selector(SettingsSecurityViewController.permissionsTapped),
+//            actionTarget: self)
 //        UiUtils.setupTapRecognizer(
 //            forView: actionChangePassword,
 //            action: #selector(SettingsSecurityViewController.changePasswordClicked),
@@ -62,10 +62,10 @@ class SettingsSecurityViewController: UITableViewController {
 
     private func reloadData() {
         // Permissions.
-        self.authPermissionsLabel.text = me.defacs?.getAuth() ?? ""
-        self.authPermissionsLabel.sizeToFit()
-        self.anonPermissionsLabel.text = me.defacs?.getAnon() ?? ""
-        self.anonPermissionsLabel.sizeToFit()
+//        self.authPermissionsLabel.text = me.defacs?.getAuth() ?? ""
+//        self.authPermissionsLabel.sizeToFit()
+//        self.anonPermissionsLabel.text = me.defacs?.getAnon() ?? ""
+//        self.anonPermissionsLabel.sizeToFit()
 
         if self.tinode.countFilteredTopics(filter: { topic in return topic.topicType.matches(TopicType.user) && !topic.isJoiner }) == 0 {
             // No blocked contacts, disable cell.
@@ -82,36 +82,36 @@ class SettingsSecurityViewController: UITableViewController {
         }
     }
 
-    private func getAcsAndPermissionsChangeType(for sender: UIView) -> (AcsHelper?, UiUtils.PermissionsChangeType?) {
-        if sender === authUsersPermissions {
-            return (me.defacs?.auth, .updateAuth)
-        }
-        if sender === anonUsersPermissions {
-            return (me.defacs?.anon, .updateAnon)
-        }
-        return (nil, nil)
-    }
+//    private func getAcsAndPermissionsChangeType(for sender: UIView) -> (AcsHelper?, UiUtils.PermissionsChangeType?) {
+//        if sender === authUsersPermissions {
+//            return (me.defacs?.auth, .updateAuth)
+//        }
+//        if sender === anonUsersPermissions {
+//            return (me.defacs?.anon, .updateAnon)
+//        }
+//        return (nil, nil)
+//    }
 
-    @objc
-    func permissionsTapped(sender: UITapGestureRecognizer) {
-        guard let v = sender.view else {
-            Cache.log.debug("SettingsSecurityVC - permissions tap from no sender view... quitting")
-            return
-        }
-        let (acs, changeTypeOptional) = getAcsAndPermissionsChangeType(for: v)
-        guard let acsUnwrapped = acs, let changeType = changeTypeOptional else {
-            Cache.log.debug("SettingsSecurityVC - permissionsTapped: could not get acs")
-            return
-        }
-        UiUtils.showPermissionsEditDialog(over: self, acs: acsUnwrapped, callback: { permissions in
-            UiUtils.handlePermissionsChange(onTopic: self.me, forUid: nil, changeType: changeType, newPermissions: permissions)?.then(
-                onSuccess: { _ in
-                    DispatchQueue.main.async { self.reloadData() }
-                        return nil
-                }
-            )
-        }, disabledPermissions: "ODS")
-    }
+//    @objc
+//    func permissionsTapped(sender: UITapGestureRecognizer) {
+//        guard let v = sender.view else {
+//            Cache.log.debug("SettingsSecurityVC - permissions tap from no sender view... quitting")
+//            return
+//        }
+//        let (acs, changeTypeOptional) = getAcsAndPermissionsChangeType(for: v)
+//        guard let acsUnwrapped = acs, let changeType = changeTypeOptional else {
+//            Cache.log.debug("SettingsSecurityVC - permissionsTapped: could not get acs")
+//            return
+//        }
+//        UiUtils.showPermissionsEditDialog(over: self, acs: acsUnwrapped, callback: { permissions in
+//            UiUtils.handlePermissionsChange(onTopic: self.me, forUid: nil, changeType: changeType, newPermissions: permissions)?.then(
+//                onSuccess: { _ in
+//                    DispatchQueue.main.async { self.reloadData() }
+//                        return nil
+//                }
+//            )
+//        }, disabledPermissions: "ODS")
+//    }
 
 //    @objc func changePasswordClicked(sender: UITapGestureRecognizer) {
 //        let alert = UIAlertController(title: NSLocalizedString("Change Password", comment: "Alert title"), message: nil, preferredStyle: .alert)
