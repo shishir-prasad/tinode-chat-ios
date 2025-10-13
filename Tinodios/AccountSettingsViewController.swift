@@ -21,7 +21,6 @@ class AccountSettingsViewController: UITableViewController {
 
     @IBOutlet weak var avatarImageView: RoundImageView!
     @IBOutlet weak var userNameLabel: UILabel!
-    @IBOutlet weak var myUIDLabel: UILabel!
     @IBOutlet weak var aliasLabel: UILabel!
     @IBOutlet weak var descriptionLabel: UILabel!
     
@@ -55,8 +54,6 @@ class AccountSettingsViewController: UITableViewController {
         self.descriptionLabel.text = me.pub?.note ?? me.tags?.joined(separator: ", ")
 
         // My UID/Address label.
-        self.myUIDLabel.text = self.tinode.myUid
-        self.myUIDLabel.sizeToFit()
 
         self.aliasLabel.text = "@\(me.alias ?? "")"
         self.aliasLabel.sizeToFit()
