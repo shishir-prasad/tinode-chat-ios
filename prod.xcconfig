@@ -22,7 +22,7 @@ APP_ID = QixSecure
 USE_HTTPS = YES
 
 // Versioning. The values are automatically updated by a build script.
-GIT_TAG = cef5851add5ede38a3256266dee094b86ba94ec
-GIT_COMMIT_COUNT = 1832
+GIT_TAG = f58499f5cc03e24afe54f724f8687a93ee99448
+GIT_COMMIT_COUNT = 1833
 
 TINODE_API_KEY = AQAAAAABAAByCoXpLdVgii7-77YqZ6S4
