@@ -26,6 +26,18 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>HOST_NAME</key>
 	<string>$(HOST_NAME)</string>
+	<key>SERVICE_NAME</key>
+	<string>$(SERVICE_NAME)</string>
+	<key>TOS_URL</key>
+	<string>$(TOS_URL)</string>
+	<key>PRIVACY_URL</key>
+	<string>$(PRIVACY_URL)</string>
+	<key>API_HOST</key>
+	<string>$(API_HOST)</string>
+	<key>APP_ID</key>
+	<string>$(APP_ID)</string>
+	<key>USE_HTTPS</key>
+	<string>$(USE_HTTPS)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSRequiresIPhoneOS</key>

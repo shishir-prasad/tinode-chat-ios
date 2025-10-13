@@ -13,6 +13,16 @@ USE_TLS = YES
 // App Settings
 APP_NAME = QixSecure BCP
 
+SERVICE_NAME= QixSecure
+
+// Branding Configuration
+SERVICE_NAME = QixSecure BCP
+TOS_URL = qixsecure.com/terms
+PRIVACY_URL = qixsecure.com/privacy
+API_HOST = fochat-dev.saleswarp.com
+APP_ID = QixSecure
+USE_HTTPS = YES
+
 // Versioning. The values are automatically updated by a build script.
 GIT_TAG = 1.24.3
 GIT_COMMIT_COUNT = 1828

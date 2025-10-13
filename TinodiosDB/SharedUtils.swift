@@ -396,8 +396,83 @@ public class SharedUtils {
         task.resume()
     }
 
-    // Identifies device with Tinode server and fetches branding configuration code.
+    // Configures application branding from local configuration or remote fallback.
     public static func identifyAndConfigureBranding() {
+        // Try local configuration first
+        if let localConfig = loadLocalBrandingConfig() {
+            BaseDb.log.info("Using local branding configuration")
+            applyBrandingConfig(localConfig)
+            return
+        }
+
+        // Fallback to remote configuration if local is unavailable
+        BaseDb.log.info("Local branding config unavailable, falling back to remote")
+        fetchRemoteBrandingConfig()
+    }
+
+    // Loads branding configuration from xcconfig via Bundle
+    private static func loadLocalBrandingConfig() -> [String: Any]? {
+        guard let serviceName = Bundle.main.object(forInfoDictionaryKey: "SERVICE_NAME") as? String,
+              let tosUrl = Bundle.main.object(forInfoDictionaryKey: "TOS_URL") as? String,
+              let privacyUrl = Bundle.main.object(forInfoDictionaryKey: "PRIVACY_URL") as? String,
+              let apiHost = Bundle.main.object(forInfoDictionaryKey: "API_HOST") as? String,
+              let appId = Bundle.main.object(forInfoDictionaryKey: "APP_ID") as? String,
+              let useHttps = Bundle.main.object(forInfoDictionaryKey: "USE_HTTPS") as? String else {
+            BaseDb.log.info("Local branding configuration keys missing from Bundle")
+            return nil
+        }
+
+        let scheme = (useHttps.uppercased() == "YES") ? "https" : "http"
+        let fullTosUrl = tosUrl.hasPrefix("http") ? tosUrl : "\(scheme)://\(tosUrl)"
+        let fullPrivacyUrl = privacyUrl.hasPrefix("http") ? privacyUrl : "\(scheme)://\(privacyUrl)"
+        let fullApiUrl = apiHost.hasPrefix("http") ? apiHost : "\(scheme)://\(apiHost)"
+
+        return [
+            "service_name": serviceName,
+            "tos_url": fullTosUrl,
+            "privacy_url": fullPrivacyUrl,
+            "api_url": fullApiUrl,
+            "id": appId
+        ]
+    }
+
+    // Applies branding configuration from dictionary
+    private static func applyBrandingConfig(_ config: [String: Any]) {
+        if let tosUrl = config["tos_url"] as? String, !tosUrl.isEmpty {
+            SharedUtils.tosUrl = tosUrl
+        }
+
+        if let serviceName = config["service_name"] as? String, !serviceName.isEmpty {
+            SharedUtils.serviceName = serviceName
+        }
+
+        if let privacyUrl = config["privacy_url"] as? String, !privacyUrl.isEmpty {
+            SharedUtils.privacyUrl = privacyUrl
+        }
+
+        if let apiUrl = config["api_url"] as? String, !apiUrl.isEmpty,
+           let url = URL(string: apiUrl) {
+            let useTLS = ["https", "wss"].contains(url.scheme) ? "true" : "false"
+            if let host = url.host {
+                setConnectionSettings(host, useTLS)
+            }
+        }
+
+        if let appId = config["id"] as? String, !appId.isEmpty {
+            SharedUtils.appId = appId
+        }
+
+        // Send notification that branding config is available
+        NotificationCenter.default.post(
+            name: Notification.Name(SharedUtils.kNotificationBrandingConfigAvailable),
+            object: nil
+        )
+
+        BaseDb.log.info("Branding configuration applied successfully")
+    }
+
+    // Legacy remote branding configuration (fallback)
+    private static func fetchRemoteBrandingConfig() {
         let device = UIDevice.current.userInterfaceIdiom == .phone ? "iphone" : UIDevice.current.userInterfaceIdiom == .pad ? "ipad" : ""
         let version = UIDevice.current.systemVersion
         let url = URL(string: "https://hosts.tinode.co/whoami?os=ios-\(version)&dev=\(device)")!
@@ -408,7 +483,6 @@ public class SharedUtils {
             }
             let responseJSON = try? JSONSerialization.jsonObject(with: data, options: [])
             if let responseJSON = responseJSON as? [String: Any] {
-
                 if let code = responseJSON["code"] as? String {
                     SharedUtils.setUpBranding(withConfigurationCode: code)
                 } else {
@@ -419,7 +493,7 @@ public class SharedUtils {
         task.resume()
     }
 
-    // Configures application branding and connection settings.
+    // Configures application branding and connection settings from remote source.
     public static func setUpBranding(withConfigurationCode configCode: String) {
         guard !configCode.isEmpty else {
             BaseDb.log.info("Branding configuration code may not be empty. Skipping branding config.")
@@ -436,26 +510,7 @@ public class SharedUtils {
             }
             let responseJSON = try? JSONSerialization.jsonObject(with: data, options: [])
             if let responseJSON = responseJSON as? [String: Any] {
-
-                if let tosUrl = URL(string: responseJSON["tos_url"] as? String ?? "") {
-                    SharedUtils.tosUrl = tosUrl.absoluteString
-                }
-                if let serviceName = responseJSON["service_name"] as? String {
-                    SharedUtils.serviceName = serviceName
-                }
-                if let privacyUrl  = URL(string: responseJSON["privacy_url"] as? String ?? "") {
-                    SharedUtils.privacyUrl = privacyUrl.absoluteString
-                }
-                if let apiUrl = URL(string: responseJSON["api_url"] as? String ?? "") {
-                    let useTLS = ["https", "ws"].contains(apiUrl.scheme) ? "true" : "false"
-                    setConnectionSettings(apiUrl.host!, useTLS)
-                }
-                if let id = responseJSON["id"] as? String {
-                    SharedUtils.appId = id
-                }
-
-                // Send a notification so all interested parties may use branding config.
-                NotificationCenter.default.post(name: Notification.Name(SharedUtils.kNotificationBrandingConfigAvailable), object: nil)
+                applyBrandingConfig(responseJSON)
                 // Icons.
                 if let assetsBase = responseJSON["assets_base"] as? String, let base = URL(string: assetsBase) {
                     if let smallIcon = responseJSON["icon_small"] as? String {
