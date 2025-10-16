@@ -459,7 +459,7 @@ class LoginViewController: UIViewController {
                     if preLoginResponse.data.success {
                         if preLoginResponse.data.requireOtp {
                             // Show success message first
-                            UiUtils.showToast(message: "OTP sent to your email. Please check your inbox.")
+                            UiUtils.showToast(message: "OTP sent to your whatsapp. Please check your inbox.")
                             // OTP is required, show OTP verification
                             self.showOTPVerification(username: userName, password: password)
                         } else {
@@ -487,7 +487,7 @@ class LoginViewController: UIViewController {
             guard let self = self else { return }
 
             let alert = UIAlertController(title: "OTP Verification",
-                                        message: "An OTP has been sent to your email. Please enter it below to continue.",
+                                        message: "An OTP has been sent to your whatsapp. Please enter it below to continue.",
                                         preferredStyle: .alert)
 
             alert.addTextField { textField in
