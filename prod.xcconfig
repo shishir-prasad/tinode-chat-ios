@@ -11,10 +11,12 @@ HOST_NAME = fochat-dev.saleswarp.com
 USE_TLS = YES
 
 // App Settings
-APP_NAME = QixSecure BCP
+APP_NAME = BrightSide
+
+SERVICE_NAME= BrightSide
 
 // Branding Configuration
-SERVICE_NAME = QixSecure
+SERVICE_NAME = BrightSide
 TOS_URL = qixsecure.com/terms
 PRIVACY_URL = qixsecure.com/privacy
 API_HOST = fochat-dev.saleswarp.com
@@ -22,7 +24,7 @@ APP_ID = QixSecure
 USE_HTTPS = YES
 
 // Versioning. The values are automatically updated by a build script.
-GIT_TAG = b1d123bc457fc0b7bb4824ef3b2cf6ef2da1612
-GIT_COMMIT_COUNT = 1840
+GIT_TAG = ab69a0dc98058bf540494bba837e93f99e54cec
+GIT_COMMIT_COUNT = 1841
 
 TINODE_API_KEY = AQAAAAABAAByCoXpLdVgii7-77YqZ6S4

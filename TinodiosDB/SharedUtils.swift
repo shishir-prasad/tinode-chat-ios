@@ -147,14 +147,52 @@ public class SharedUtils {
 
     public static func getAuthToken() -> String? {
         guard SharedUtils.appMetaVersionUpToDate() else { return nil }
+
+        // Check keychain accessibility before attempting to read
+        guard isKeychainAccessible() else {
+            BaseDb.log.info("Keychain not accessible, cannot retrieve auth token")
+            return nil
+        }
+
         return SharedUtils.kAppKeychain.string(
             forKey: SharedUtils.kTokenKey, withAccessibility: .afterFirstUnlock)
     }
 
+    private static func isKeychainAccessible() -> Bool {
+        // Test keychain accessibility by attempting to read/write a test value
+        let testKey = "co.tinode.accessibility_test"
+        let testValue = "test_\(Date().timeIntervalSince1970)"
+
+        // Try to set a test value
+        guard SharedUtils.kAppKeychain.set(testValue, forKey: testKey, withAccessibility: .afterFirstUnlock) else {
+            BaseDb.log.debug("Keychain accessibility test failed - cannot write")
+            return false
+        }
+
+        // Try to read the test value
+        let retrievedValue = SharedUtils.kAppKeychain.string(forKey: testKey, withAccessibility: .afterFirstUnlock)
+
+        // Clean up test value
+        SharedUtils.kAppKeychain.removeObject(forKey: testKey)
+
+        let isAccessible = retrievedValue == testValue
+        if !isAccessible {
+            BaseDb.log.debug("Keychain accessibility test failed - read/write mismatch")
+        }
+
+        return isAccessible
+    }
+
     public static func getAuthTokenExpiryDate() -> Date? {
-         guard let expString = SharedUtils.kAppKeychain.string(
-             forKey: SharedUtils.kTokenExpiryKey, withAccessibility: .afterFirstUnlock) else { return nil }
-         return Formatter.rfc3339.date(from: expString)
+        // Check keychain accessibility before attempting to read
+        guard isKeychainAccessible() else {
+            BaseDb.log.info("Keychain not accessible, cannot retrieve auth token expiry date")
+            return nil
+        }
+
+        guard let expString = SharedUtils.kAppKeychain.string(
+            forKey: SharedUtils.kTokenExpiryKey, withAccessibility: .afterFirstUnlock) else { return nil }
+        return Formatter.rfc3339.date(from: expString)
     }
 
     public static func removeAuthToken() {
@@ -163,19 +201,50 @@ public class SharedUtils {
     }
 
     public static func saveAuthToken(for userName: String, token: String?, expires expiryDate: Date?) {
+        saveAuthToken(for: userName, token: token, expires: expiryDate, completion: nil)
+    }
+
+    public static func saveAuthToken(for userName: String, token: String?, expires expiryDate: Date?, completion: ((Bool) -> Void)?) {
+        var success = true
+
+        // Save username to user defaults
         SharedUtils.kAppDefaults.set(userName, forKey: SharedUtils.kTinodePrefLastLogin)
+
         if let token = token, !token.isEmpty {
+            // Save token to keychain with validation
             if !SharedUtils.kAppKeychain.set(token, forKey: SharedUtils.kTokenKey, withAccessibility: .afterFirstUnlock) {
-                BaseDb.log.error("Could not save auth token")
+                BaseDb.log.error("Could not save auth token to keychain")
+                success = false
+            } else {
+                // Immediately validate token was saved correctly
+                if SharedUtils.kAppKeychain.string(forKey: SharedUtils.kTokenKey, withAccessibility: .afterFirstUnlock) != token {
+                    BaseDb.log.error("Auth token validation failed after save")
+                    success = false
+                }
             }
+
+            // Save expiry date if provided
             if let expiryDate = expiryDate {
-                SharedUtils.kAppKeychain.set(
-                    Formatter.rfc3339.string(from: expiryDate),
-                    forKey: SharedUtils.kTokenExpiryKey,
-                    withAccessibility: .afterFirstUnlock)
+                let expiryString = Formatter.rfc3339.string(from: expiryDate)
+                if !SharedUtils.kAppKeychain.set(expiryString, forKey: SharedUtils.kTokenExpiryKey, withAccessibility: .afterFirstUnlock) {
+                    BaseDb.log.error("Could not save auth token expiry date")
+                    success = false
+                }
             } else {
                 SharedUtils.kAppKeychain.removeObject(forKey: SharedUtils.kTokenExpiryKey)
             }
+        }
+
+        // Force sync to ensure persistence
+        SharedUtils.kAppDefaults.synchronize()
+
+        // Call completion handler with result
+        completion?(success)
+
+        if success {
+            BaseDb.log.info("Auth token saved and validated successfully for user: %@", userName)
+        } else {
+            BaseDb.log.error("Failed to save or validate auth token for user: %@", userName)
         }
     }
 

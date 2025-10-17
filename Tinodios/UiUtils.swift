@@ -237,10 +237,36 @@ class UiUtils {
     }
 
     public static func logoutAndRouteToLoginVC() {
-        Cache.log.info("UiUtils - Invalidating cache and logging out.")
+        Cache.log.info("UiUtils - Starting complete session reset and logout.")
+        performCompleteLogout {
+            UiUtils.routeToLoginVC()
+        }
+    }
+
+    private static func performCompleteLogout(completion: @escaping () -> Void) {
+        // Step 1: Clear authentication tokens immediately
         SharedUtils.removeAuthToken()
+        Cache.log.info("UiUtils - Auth tokens cleared")
+
+        // Step 2: Force disconnect Tinode connection
+        let tinode = Cache.tinode
+        if tinode.isConnected {
+            tinode.disconnect()
+            Cache.log.info("UiUtils - Tinode connection disconnected")
+        }
+
+        // Step 3: Clear all cached state
         Cache.invalidate()
-        UiUtils.routeToLoginVC()
+        Cache.log.info("UiUtils - Cache invalidated")
+
+        // Step 4: Clear any pending network operations
+        URLSession.shared.invalidateAndCancel()
+
+        // Step 5: Reset UI state with small delay to ensure cleanup completion
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            Cache.log.info("UiUtils - Session reset complete, routing to login")
+            completion()
+        }
     }
 
     private static func routeToLoginVC(completion: (() -> (Void))? = nil) {
