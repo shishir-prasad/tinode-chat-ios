@@ -48,7 +48,24 @@ struct LoginResponse: Codable {
 }
 
 struct UserData: Codable {
-    let User: UserInfo
+    let User: UserInfo?
+
+    // Custom initializer to handle different API response formats
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Try to decode the User object directly
+        if let userInfo = try? container.decode(UserInfo.self, forKey: .User) {
+            self.User = userInfo
+        } else {
+            // If User key is missing or invalid, set to nil
+            self.User = nil
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case User
+    }
 }
 
 struct UserInfo: Codable {
@@ -508,11 +525,13 @@ class LoginViewController: UIViewController {
         do {
             try tinode.connectDefault(inBackground: false)?
                 .thenApply({ _ in
-                    return tinode.loginSSO(token: token)
+                    // Try token authentication first, fallback to SSO if needed
+                    Cache.log.info("LoginVC - Attempting token authentication with: %@", String(token.prefix(10)) + "...")
+                    return tinode.loginToken(token: token, creds: nil)
                 })
                 .then(
                     onSuccess: { [weak self] pkt in
-                        Cache.log.info("LoginVC - SSO login successful for %@", tinode.myUid!)
+                        Cache.log.info("LoginVC - Token login successful for %@", tinode.myUid!)
                         if let token = tinode.authToken {
                             tinode.setAutoLoginWithToken(token: token)
                         }
@@ -525,20 +544,37 @@ class LoginViewController: UIViewController {
                         }
                         UiUtils.routeToChatListVC()
                         return nil
-                    }, onFailure: { err in
-                        Cache.log.error("LoginVC - SSO login failed: %@", err.localizedDescription)
-                        let errorClassification = self.classifyError(err)
+                    }, onFailure: { [weak self] err in
+                        Cache.log.error("LoginVC - Token login failed, trying SSO: %@", err.localizedDescription)
 
-                        DispatchQueue.main.async {
-                            UiUtils.showToast(message: errorClassification.message)
-                        }
+                        // Fallback to SSO authentication
+                        guard let self = self else { return nil }
+                        return tinode.loginSSO(token: token).then(
+                            onSuccess: { pkt in
+                                Cache.log.info("LoginVC - SSO login successful for %@", tinode.myUid!)
+                                if let token = tinode.authToken {
+                                    tinode.setAutoLoginWithToken(token: token)
+                                }
+                                UiUtils.routeToChatListVC()
+                                return nil
+                            },
+                            onFailure: { ssoErr in
+                                Cache.log.error("LoginVC - Both token and SSO login failed: %@", ssoErr.localizedDescription)
+                                let errorClassification = self.classifyError(ssoErr)
 
-                        // Only invalidate cache for non-recoverable errors
-                        if !errorClassification.isRecoverable {
-                            Cache.invalidate()
-                        }
-                        return nil
-                    }).thenFinally { [weak self] in
+                                DispatchQueue.main.async {
+                                    UiUtils.showToast(message: errorClassification.message)
+                                }
+
+                                // Only invalidate cache for non-recoverable errors
+                                if !errorClassification.isRecoverable {
+                                    Cache.invalidate()
+                                }
+                                return nil
+                            }
+                        )
+                    })
+                    .thenFinally { [weak self] in
                         guard let loginVC = self else { return }
                         DispatchQueue.main.async {
                             UiUtils.toggleProgressOverlay(in: loginVC, visible: false)
