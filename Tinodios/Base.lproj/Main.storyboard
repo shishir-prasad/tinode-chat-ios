@@ -2421,13 +2421,7 @@
                     <tabBarItem key="tabBarItem" title="New Group" id="0Fx-rq-hiS">
                         <imageReference key="image" image="plus.circle" catalog="system" symbolScale="medium"/>
                     </tabBarItem>
-                    <toolbarItems>
-                        <barButtonItem systemItem="save" id="sKP-e9-Xlo">
-                            <connections>
-                                <action selector="saveButtonClicked:" destination="54g-fF-w5D" id="Iuc-0p-ama"/>
-                            </connections>
-                        </barButtonItem>
-                    </toolbarItems>
+                    <toolbarItems/>
                     <simulatedToolbarMetrics key="simulatedBottomBarMetrics"/>
                     <connections>
                         <outlet property="avatarView" destination="IVi-b4-eb8" id="6nd-mH-AZe"/>
@@ -2435,9 +2429,20 @@
                         <outlet property="groupNameTextField" destination="kDN-bf-JDL" id="Z8N-ve-nML"/>
                         <outlet property="privateTextField" destination="Do2-Ue-UdA" id="EYV-vV-p6S"/>
                         <outlet property="saveButtonItem" destination="sKP-e9-Xlo" id="Fnt-yq-h4A"/>
+                        <outlet property="saveGroupButtonItem" destination="7dL-Qx-3fH" id="8kL-mN-7Hj"/>
                         <outlet property="tagsTextField" destination="eW7-0d-9hE" id="U9u-ob-cKc"/>
                     </connections>
                 </tableViewController>
+                <barButtonItem systemItem="save" id="sKP-e9-Xlo">
+                    <connections>
+                        <action selector="saveButtonClicked:" destination="54g-fF-w5D" id="Iuc-0p-ama"/>
+                    </connections>
+                </barButtonItem>
+                <barButtonItem title="Save Group" style="done" id="7dL-Qx-3fH">
+                    <connections>
+                        <action selector="saveGroupButtonClicked:" destination="54g-fF-w5D" id="nX2-8v-Jgk"/>
+                    </connections>
+                </barButtonItem>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="slW-Wc-jxc" userLabel="First Responder" sceneMemberID="firstResponder"/>
             </objects>
             <point key="canvasLocation" x="1708.6956521739132" y="1733.967391304348"/>
