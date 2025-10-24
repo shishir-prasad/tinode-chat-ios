@@ -501,8 +501,22 @@ class UiUtils {
     @discardableResult
     public static func ToastFailureHandler(err: Error) -> PromisedReply<ServerMessage>? {
         DispatchQueue.main.async {
-            if let e = err as? TinodeError, case .notConnected = e {
-                UiUtils.showToast(message: NSLocalizedString("You are offline.", comment: "Toast notification"))
+            if let e = err as? TinodeError {
+                switch e {
+                case .notConnected(_):
+                    UiUtils.showToast(message: NSLocalizedString("You are offline.", comment: "Toast notification"))
+                case .invalidState(let reason):
+                    // Check if this is an authentication-related error
+                    if reason.lowercased().contains("authenticated") {
+                        Cache.log.info("UiUtils - Authentication error detected: %@", reason)
+                        UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
+                        UiUtils.logoutAndRouteToLoginVC()
+                    } else {
+                        UiUtils.showToast(message: String(format: NSLocalizedString("Action failed: %@", comment: "Toast notification"), err.localizedDescription))
+                    }
+                default:
+                    UiUtils.showToast(message: String(format: NSLocalizedString("Action failed: %@", comment: "Toast notification"), err.localizedDescription))
+                }
             } else {
                 UiUtils.showToast(message: String(format: NSLocalizedString("Action failed: %@", comment: "Toast notification"), err.localizedDescription))
             }

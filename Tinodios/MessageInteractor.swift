@@ -254,6 +254,17 @@ class MessageInteractor: DefaultComTopic.Listener, MessageBusinessLogic, Message
                     switch err {
                     case TinodeError.notConnected(_):
                         tinode.reconnectNow(interactively: false, reset: false)
+                    case TinodeError.invalidState(let reason):
+                        // Check if this is an authentication-related error
+                        if reason.lowercased().contains("authenticated") {
+                            Cache.log.info("MessageInteractor - Authentication error detected in subscribe: %@", reason)
+                            DispatchQueue.main.async {
+                                UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
+                                UiUtils.logoutAndRouteToLoginVC()
+                            }
+                        } else {
+                            self?.presenter?.applyTopicPermissions(withError: err)
+                        }
                     default:
                         self?.presenter?.applyTopicPermissions(withError: err)
                     }
@@ -363,10 +374,24 @@ class MessageInteractor: DefaultComTopic.Listener, MessageBusinessLogic, Message
             onFailure: { err in
                 Cache.log.error("sendMessage error: %@", err.localizedDescription)
                 if let e = err as? TinodeError {
-                    if case .notConnected(_) = e {
+                    switch e {
+                    case .notConnected(_):
                         DispatchQueue.main.async { UiUtils.showToast(message: NSLocalizedString("You are offline.", comment: "Toast notification")) }
                         Cache.tinode.reconnectNow(interactively: false, reset: false)
                         return nil
+                    case .invalidState(let reason):
+                        // Check if this is an authentication-related error
+                        if reason.lowercased().contains("authenticated") {
+                            Cache.log.info("MessageInteractor - Authentication error detected in sendMessage: %@", reason)
+                            DispatchQueue.main.async {
+                                UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
+                                UiUtils.logoutAndRouteToLoginVC()
+                            }
+                            return nil
+                        }
+                        break
+                    default:
+                        break
                     }
                 }
                 DispatchQueue.main.async {
