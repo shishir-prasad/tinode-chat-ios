@@ -216,9 +216,25 @@ public class SharedUtils {
                 BaseDb.log.error("Could not save auth token to keychain")
                 success = false
             } else {
-                // Immediately validate token was saved correctly
-                if SharedUtils.kAppKeychain.string(forKey: SharedUtils.kTokenKey, withAccessibility: .afterFirstUnlock) != token {
-                    BaseDb.log.error("Auth token validation failed after save")
+                // Retry validation with small delay to handle async keychain writes
+                // iOS keychain writes may not be immediately readable due to async persistence
+                var validationSuccess = false
+                for attempt in 1...3 {
+                    if let retrievedToken = SharedUtils.kAppKeychain.string(forKey: SharedUtils.kTokenKey, withAccessibility: .afterFirstUnlock),
+                       retrievedToken == token {
+                        validationSuccess = true
+                        BaseDb.log.debug("Auth token validation succeeded on attempt %d", attempt)
+                        break
+                    }
+                    // Wait briefly before retrying (10ms, 20ms, 30ms progression)
+                    if attempt < 3 {
+                        Thread.sleep(forTimeInterval: Double(attempt) * 0.01)
+                        BaseDb.log.debug("Auth token validation retry %d", attempt)
+                    }
+                }
+
+                if !validationSuccess {
+                    BaseDb.log.error("Auth token validation failed after 3 attempts")
                     success = false
                 }
             }

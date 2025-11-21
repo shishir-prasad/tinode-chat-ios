@@ -88,6 +88,7 @@ class PreviewFormatter: AbstractFormatter {
 
         if PreviewFormatter.isSkippableJson(attr["mime"]?.asString()) {
             // Skip JSON attachments. They are not meant to be user-visible.
+            print("Drafty form response: \(attr)")
             return FormatNode()
         }
 
