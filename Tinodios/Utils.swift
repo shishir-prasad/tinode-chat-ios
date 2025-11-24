@@ -312,6 +312,23 @@ extension StoredMessage {
         guard cachedContent == nil else { return cachedContent }
         if !isDeleted {
             guard let content = content else { return nil }
+
+            if content.isPlain {
+                let plainText = content.string
+                let defaultAttrs = attributes ?? [:]
+                if MessageContentConverter.isHTML(plainText) {
+                    if let htmlConverted = MessageContentConverter.htmlToAttributedString(plainText, defaultAttributes: defaultAttrs) {
+                        cachedContent = htmlConverted
+                        return cachedContent
+                    }
+                }
+
+                if MessageContentConverter.isMarkdown(plainText) {
+                    cachedContent = MessageContentConverter.markdownToAttributedString(plainText, defaultAttributes: defaultAttrs)
+                    return cachedContent
+                }
+            }
+
             cachedContent = FullFormatter(defaultAttributes: attributes ?? [:]).toAttributed(content, fitIn: size)
         } else {
             cachedContent = StoredMessage.contentDeletedMessage(withAttributes: attributes)

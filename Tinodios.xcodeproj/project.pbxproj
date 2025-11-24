@@ -139,6 +139,7 @@
 		B0E6F5EF2DF44DFF00A8B1FF /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = B0E6F5ED2DF44DFF00A8B1FF /* InfoPlist.strings */; };
 		B0F2F0C929DA295900100B24 /* MessageViewController+MessageDisplayLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F2F0C829DA295900100B24 /* MessageViewController+MessageDisplayLogic.swift */; };
 		B0F98C8322E381C300444121 /* MessageMenuItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F98C8222E381C300444121 /* MessageMenuItem.swift */; };
+		E232AB792ED4A06400CD6D5F /* MessageContentConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E232AB782ED4A06400CD6D5F /* MessageContentConverter.swift */; };
 		FA37AD24238B0D6F00301261 /* KeyboardInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA37AD23238B0D6F00301261 /* KeyboardInfo.swift */; };
 /* End PBXBuildFile section */
 
@@ -367,6 +368,7 @@
 		B0F98C8222E381C300444121 /* MessageMenuItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageMenuItem.swift; sourceTree = "<group>"; };
 		B33FA5FDB8E984980BADDAB2 /* Pods-TinodiosUITests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TinodiosUITests.debug.xcconfig"; path = "Pods/Target Support Files/Pods-TinodiosUITests/Pods-TinodiosUITests.debug.xcconfig"; sourceTree = "<group>"; };
 		B36DC000235D850000724348 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/LaunchScreen.strings"; sourceTree = "<group>"; };
+		E232AB782ED4A06400CD6D5F /* MessageContentConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageContentConverter.swift; sourceTree = "<group>"; };
 		FA37AD23238B0D6F00301261 /* KeyboardInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardInfo.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -403,6 +405,7 @@
 		0A0380CB21B3CC8100A3FA0E = {
 			isa = PBXGroup;
 			children = (
+				E232AB782ED4A06400CD6D5F /* MessageContentConverter.swift */,
 				B052ABD22863F83500A7D550 /* audio */,
 				B0CF83E2244E074A00E79D22 /* Localizable.strings */,
 				B01120B72357469300EFCB1F /* devel.xcconfig */,
@@ -1055,6 +1058,7 @@
 				B0A612B5229132CC00569DFE /* MessageBubbleDecorator.swift in Sources */,
 				B0DF0319227C2517000F9492 /* MessageView.swift in Sources */,
 				B01D2C6D27910B1E009543F2 /* ThumbnailTransformer.swift in Sources */,
+				E232AB792ED4A06400CD6D5F /* MessageContentConverter.swift in Sources */,
 				7DDADC5421D5C2E6009733B5 /* CredentialsViewController.swift in Sources */,
 				B0A612AF228B08EC00569DFE /* RichTextView.swift in Sources */,
 				0AD6873D27233C0800A39486 /* QuotedAttachment.swift in Sources */,
