@@ -259,8 +259,16 @@ class MessageInteractor: DefaultComTopic.Listener, MessageBusinessLogic, Message
                         if reason.lowercased().contains("authenticated") {
                             Cache.log.info("MessageInteractor - Authentication error detected in subscribe: %@", reason)
                             DispatchQueue.main.async {
-                                UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
-                                UiUtils.logoutAndRouteToLoginVC()
+                                if SharedUtils.kEnableAutoLogout {
+                                    UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
+                                    UiUtils.logoutAndRouteToLoginVC()
+                                } else {
+                                    UiUtils.showToast(message: NSLocalizedString("Authentication error. Please check connection and try again.", comment: "Toast notification"))
+                                    // Attempt background reconnection
+                                    DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 2.0) {
+                                        Cache.tinode.reconnectNow(interactively: false, reset: false)
+                                    }
+                                }
                             }
                         } else {
                             self?.presenter?.applyTopicPermissions(withError: err)
@@ -384,8 +392,16 @@ class MessageInteractor: DefaultComTopic.Listener, MessageBusinessLogic, Message
                         if reason.lowercased().contains("authenticated") {
                             Cache.log.info("MessageInteractor - Authentication error detected in sendMessage: %@", reason)
                             DispatchQueue.main.async {
-                                UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
-                                UiUtils.logoutAndRouteToLoginVC()
+                                if SharedUtils.kEnableAutoLogout {
+                                    UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
+                                    UiUtils.logoutAndRouteToLoginVC()
+                                } else {
+                                    UiUtils.showToast(message: NSLocalizedString("Message sending failed. Please try again.", comment: "Toast notification"))
+                                    // Attempt background reconnection
+                                    DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 2.0) {
+                                        Cache.tinode.reconnectNow(interactively: false, reset: false)
+                                    }
+                                }
                             }
                             return nil
                         }

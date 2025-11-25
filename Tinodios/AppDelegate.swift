@@ -104,7 +104,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Try to connect and login in the background.
         DispatchQueue.global(qos: .userInitiated).async {
             if !SharedUtils.connectAndLoginSync(using: Cache.tinode, inBackground: false) {
-                UiUtils.logoutAndRouteToLoginVC()
+                if SharedUtils.kEnableAutoLogout {
+                    UiUtils.logoutAndRouteToLoginVC()
+                } else {
+                    Cache.log.info("Background authentication failed - will retry on user interaction")
+                    // Set a flag for retry or handle gracefully without logout
+                }
             }
         }
         Cache.tinode.addListener(self.callListener)

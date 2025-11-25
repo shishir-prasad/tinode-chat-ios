@@ -39,6 +39,11 @@ public class SharedUtils {
     static let kTokenKey = "co.tinode.token"
     static let kTokenExpiryKey = "co.tinode.token_expiry"
 
+    // Auto logout control flag.
+    // Set to false to disable automatic logout on authentication errors.
+    // Manual logout will still work through user interface.
+    public static let kEnableAutoLogout = false
+
     // Application metadata version.
     // Bump it up whenever you change the application metadata and
     // want to force the user to re-login when the user installs
@@ -320,11 +325,14 @@ public class SharedUtils {
             BaseDb.log.error("Connect&Login Sync - missing auth token")
             return false
         }
-        if let tokenExpires = SharedUtils.getAuthTokenExpiryDate(), tokenExpires < Date() {
-            // Token has expired.
-            // TODO: treat tokenExpires == nil as a reason to reject.
-            BaseDb.log.error("Connect&Login Sync - auth token expired")
-            return false
+        if SharedUtils.kEnableAutoLogout {
+            if let tokenExpires = SharedUtils.getAuthTokenExpiryDate(), tokenExpires < Date() {
+                // Token has expired.
+                BaseDb.log.error("Connect&Login Sync - auth token expired")
+                return false
+            }
+        } else {
+            BaseDb.log.info("Connect&Login Sync - token expiry check disabled, using existing token")
         }
         BaseDb.log.info("Connect&Login Sync - will attempt to login (user name: %@)", userName)
         var success = false

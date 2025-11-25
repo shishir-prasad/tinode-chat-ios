@@ -214,7 +214,14 @@ class UiUtils {
                     if case TinodeError.serverResponseError(let code, let text, _) = e {
                         switch code {
                         case 404:
-                            UiUtils.logoutAndRouteToLoginVC()
+                            if SharedUtils.kEnableAutoLogout {
+                                UiUtils.logoutAndRouteToLoginVC()
+                            } else {
+                                Cache.log.info("ME topic not found - connection issue")
+                                UiUtils.showToast(message: NSLocalizedString("Connection error. Please check your network.", comment: "Error"))
+                                // Attempt reconnection
+                                Cache.tinode.reconnectNow(interactively: false, reset: false)
+                            }
                         case 502:
                             if text == "cluster unreachable" {
                                 Cache.tinode.reconnectNow(interactively: false, reset: true)
@@ -509,8 +516,16 @@ class UiUtils {
                     // Check if this is an authentication-related error
                     if reason.lowercased().contains("authenticated") {
                         Cache.log.info("UiUtils - Authentication error detected: %@", reason)
-                        UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
-                        UiUtils.logoutAndRouteToLoginVC()
+                        if SharedUtils.kEnableAutoLogout {
+                            UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
+                            UiUtils.logoutAndRouteToLoginVC()
+                        } else {
+                            UiUtils.showToast(message: NSLocalizedString("Authentication error occurred. Please try again.", comment: "Toast notification"))
+                            // Attempt background reconnection
+                            DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 2.0) {
+                                Cache.tinode.reconnectNow(interactively: false, reset: false)
+                            }
+                        }
                     } else {
                         UiUtils.showToast(message: String(format: NSLocalizedString("Action failed: %@", comment: "Toast notification"), err.localizedDescription))
                     }
@@ -536,6 +551,42 @@ class UiUtils {
 
     public static func showServerResponseErrorToast(for response: ServerMessage?) {
         DispatchQueue.main.async { UiUtils.showToast(message: String(format: "Server error: code (%d), '%@'", response?.ctrl?.code ?? 0, response?.ctrl?.text ?? "-")) }
+    }
+
+    /// Show authentication error with user-controlled recovery options
+    public static func showAuthenticationErrorWithOptions() {
+        DispatchQueue.main.async {
+            guard let window = (UIApplication.shared.delegate as? AppDelegate)?.window,
+                  let rootViewController = window.rootViewController else {
+                Cache.log.error("UiUtils - Cannot present alert: no root view controller")
+                return
+            }
+
+            let alert = UIAlertController(
+                title: NSLocalizedString("Authentication Error", comment: "Alert title"),
+                message: NSLocalizedString("There was an authentication issue. You can retry the connection or logout manually if needed.", comment: "Alert message"),
+                preferredStyle: .alert
+            )
+
+            // Retry option
+            alert.addAction(UIAlertAction(title: NSLocalizedString("Retry Connection", comment: "Alert button"), style: .default) { _ in
+                Cache.log.info("User chose to retry connection")
+                Cache.tinode.reconnectNow(interactively: true, reset: false)
+            })
+
+            // Manual logout option
+            alert.addAction(UIAlertAction(title: NSLocalizedString("Logout", comment: "Alert button"), style: .destructive) { _ in
+                Cache.log.info("User chose manual logout")
+                UiUtils.logoutAndRouteToLoginVC()
+            })
+
+            // Dismiss option
+            alert.addAction(UIAlertAction(title: NSLocalizedString("Dismiss", comment: "Alert button"), style: .cancel) { _ in
+                Cache.log.info("User dismissed authentication error")
+            })
+
+            rootViewController.present(alert, animated: true, completion: nil)
+        }
     }
 
     public static func showPermissionsEditDialog(over viewController: UIViewController?, acs: AcsHelper?, callback: PermissionsEditViewController.ChangeHandler?, disabledPermissions: String?) {

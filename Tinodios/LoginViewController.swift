@@ -221,11 +221,15 @@ class LoginViewController: UIViewController {
                 return
             }
 
-            // Check if token is expired
-            if let tokenExpiry = SharedUtils.getAuthTokenExpiryDate(), tokenExpiry < Date() {
-                Cache.log.info("LoginVC - Auth token expired, clearing and allowing re-login")
-                SharedUtils.removeAuthToken()
-                return
+            // Check if token is expired (only if auto logout is enabled)
+            if SharedUtils.kEnableAutoLogout {
+                if let tokenExpiry = SharedUtils.getAuthTokenExpiryDate(), tokenExpiry < Date() {
+                    Cache.log.info("LoginVC - Auth token expired, clearing and allowing re-login")
+                    SharedUtils.removeAuthToken()
+                    return
+                }
+            } else {
+                Cache.log.info("LoginVC - Token expiry check disabled, using existing token")
             }
 
             // Token exists and not expired, attempt background re-authentication
@@ -249,8 +253,13 @@ class LoginViewController: UIViewController {
                 } else {
                     Cache.log.info("LoginVC - Background authentication failed, token may be invalid")
                     DispatchQueue.main.async {
-                        SharedUtils.removeAuthToken()
-                        // Stay on login screen for fresh authentication
+                        if SharedUtils.kEnableAutoLogout {
+                            SharedUtils.removeAuthToken()
+                            // Stay on login screen for fresh authentication
+                        } else {
+                            Cache.log.info("LoginVC - Background authentication failed, keeping token for retry")
+                            // Stay on login screen but keep the token
+                        }
                     }
                 }
             } catch {
@@ -260,12 +269,18 @@ class LoginViewController: UIViewController {
                     if let tinodeError = error as? TinodeError {
                         switch tinodeError {
                         case .invalidState(_):
-                            // Clear invalid token
-                            SharedUtils.removeAuthToken()
+                            if SharedUtils.kEnableAutoLogout {
+                                // Clear invalid token
+                                SharedUtils.removeAuthToken()
+                            } else {
+                                Cache.log.info("Invalid state error - keeping token for retry")
+                            }
                         case .serverResponseError(let code, _, _):
-                            if code >= 400 {
+                            if code >= 400 && SharedUtils.kEnableAutoLogout {
                                 // Clear invalid token for client/server errors
                                 SharedUtils.removeAuthToken()
+                            } else {
+                                Cache.log.info("Server error code %d - keeping token for retry", code)
                             }
                             // Keep token for 5xx server errors (temporary)
                         default:

@@ -225,7 +225,12 @@ class ChatListViewController: UITableViewController, ChatListDisplayLogic {
     // }
 
     func displayLoginView() {
-        UiUtils.logoutAndRouteToLoginVC()
+        if SharedUtils.kEnableAutoLogout {
+            UiUtils.logoutAndRouteToLoginVC()
+        } else {
+            // Show authentication error with options instead of forced logout
+            UiUtils.showAuthenticationErrorWithOptions()
+        }
     }
 
     func displayChats(_ topics: [DefaultComTopic], archivedTopics: [DefaultComTopic]?) {
