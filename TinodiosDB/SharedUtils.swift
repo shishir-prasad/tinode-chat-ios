@@ -42,7 +42,7 @@ public class SharedUtils {
     // Auto logout control flag.
     // Set to false to disable automatic logout on authentication errors.
     // Manual logout will still work through user interface.
-    public static let kEnableAutoLogout = false
+    public static let kEnableAutoLogout = true
 
     // Application metadata version.
     // Bump it up whenever you change the application metadata and
@@ -325,6 +325,7 @@ public class SharedUtils {
             BaseDb.log.error("Connect&Login Sync - missing auth token")
             return false
         }
+        // NEW: More flexible token handling
         if SharedUtils.kEnableAutoLogout {
             if let tokenExpires = SharedUtils.getAuthTokenExpiryDate(), tokenExpires < Date() {
                 // Token has expired.
@@ -332,12 +333,16 @@ public class SharedUtils {
                 return false
             }
         } else {
-            BaseDb.log.info("Connect&Login Sync - token expiry check disabled, using existing token")
+            // When auto-logout is disabled, be more tolerant of token issues
+            if let tokenExpires = SharedUtils.getAuthTokenExpiryDate(), tokenExpires < Date() {
+                BaseDb.log.info("Connect&Login Sync - token expired but auto-logout disabled, attempting anyway")
+                // Continue with connection attempt - server might refresh the token
+            }
         }
         BaseDb.log.info("Connect&Login Sync - will attempt to login (user name: %@)", userName)
         var success = false
         do {
-            tinode.setAutoLoginWithToken(token: token)
+            tinode.setAutoLoginWithSSO(token: token)
             // Tinode.connect() will automatically log in.
             let msg = try tinode.connectDefault(inBackground: bkg)?.getResult()
             if let ctrl = msg?.ctrl {
@@ -351,26 +356,31 @@ public class SharedUtils {
                         SharedUtils.saveAuthToken(for: userName, token: tinode.authToken, expires: tinode.authTokenExpires)
                     }
                 case 401:
-                    BaseDb.log.info("Connect&Login Sync - attempt to subscribe to 'me' before login.")
+                    // NEW: Handle 401 more gracefully
+                    BaseDb.log.info("Connect&Login Sync - 401 unauthorized, may need token refresh")
+                    success = !SharedUtils.kEnableAutoLogout // Allow app to continue if auto-logout disabled
                 case 409:
                     BaseDb.log.info("Connect&Login Sync - already authenticated.")
                 case 500..<600:
                     BaseDb.log.error("Connect&Login Sync - server error on login: %d", ctrl.code)
+                    success = false
                 default:
                     success = false
                 }
             }
         } catch WebSocketError.network(let err) {
-            // No network connection.
             BaseDb.log.debug("Connect&Login Sync [network] - could not connect to Tinode: %@", err)
-            success = true
+            // NEW: Return true for network errors when auto-logout disabled - app can retry later
+            success = !SharedUtils.kEnableAutoLogout
         } catch {
             let err = error as NSError
             if err.code == NSURLErrorCannotConnectToHost {
                 BaseDb.log.debug("Connect&Login Sync [network] - could not connect to Tinode: %@", err)
-                success = true
+                success = !SharedUtils.kEnableAutoLogout
             } else {
                 BaseDb.log.error("Connect&Login Sync - failed to automatically login to Tinode: %@", error.localizedDescription)
+                // NEW: More tolerant error handling
+                success = !SharedUtils.kEnableAutoLogout
             }
         }
         return success
@@ -624,6 +634,113 @@ public class SharedUtils {
             }
         }
         task.resume()
+    }
+
+    // MARK: - Session Persistence Management
+
+    private static let kLastSuccessfulConnection = "lastSuccessfulConnection"
+    private static let kConnectionAttempts = "connectionAttempts"
+
+    public static func recordSuccessfulConnection() {
+        kAppDefaults.set(Date(), forKey: kLastSuccessfulConnection)
+        kAppDefaults.set(0, forKey: kConnectionAttempts) // Reset attempts
+        kAppDefaults.synchronize()
+    }
+
+    public static func recordFailedConnection() {
+        let attempts = kAppDefaults.integer(forKey: kConnectionAttempts) + 1
+        kAppDefaults.set(attempts, forKey: kConnectionAttempts)
+        kAppDefaults.synchronize()
+    }
+
+    public static func shouldAttemptAutoReconnection() -> Bool {
+        let attempts = kAppDefaults.integer(forKey: kConnectionAttempts)
+        let lastConnection = kAppDefaults.object(forKey: kLastSuccessfulConnection) as? Date
+
+        // If we had a successful connection in the last 24 hours and haven't failed too many times
+        if let lastConnection = lastConnection,
+           Date().timeIntervalSince(lastConnection) < 86400, // 24 hours
+           attempts < 5 {
+            return true
+        }
+
+        return false
+    }
+
+    // MARK: - Enhanced Token-Based Reconnection
+
+    public static func isTokenValid() -> Bool {
+        guard let token = getAuthToken(), !token.isEmpty else {
+            return false
+        }
+
+        // If auto-logout is disabled, always consider token valid for reconnection attempt
+        if !kEnableAutoLogout {
+            return true
+        }
+
+        // Check token expiry only when auto-logout is enabled
+        if let expiry = getAuthTokenExpiryDate() {
+            return expiry > Date()
+        }
+
+        // If no expiry date, assume token is still valid for reconnection attempt
+        return true
+    }
+
+    public static func attemptTokenBasedReconnection(using tinode: Tinode, completion: @escaping (Bool, String?) -> Void) {
+        guard let userName = getSavedLoginUserName(), !userName.isEmpty,
+              let token = getAuthToken(), !token.isEmpty else {
+            completion(false, "No saved credentials available")
+            return
+        }
+
+        BaseDb.log.info("Attempting token-based reconnection for user: %@", userName,token)
+
+        // Set up connection with stored token
+        tinode.setAutoLoginWithSSO(token: token)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let msg = try tinode.connectDefault(inBackground: false)?.getResult()
+                if let ctrl = msg?.ctrl {
+                    DispatchQueue.main.async {
+                        switch ctrl.code {
+                        case 0..<300:
+                            let myUid = ctrl.getStringParam(for: "user")
+                            BaseDb.log.info("Token-based reconnection successful for: %@", myUid!)
+
+                            // Update token if server provided a new one
+                            if tinode.authToken != token {
+                                saveAuthToken(for: userName, token: tinode.authToken, expires: tinode.authTokenExpires)
+                                BaseDb.log.info("Updated auth token after successful reconnection")
+                            }
+
+                            recordSuccessfulConnection()
+                            completion(true, nil)
+
+                        case 401:
+                            BaseDb.log.error("Token-based reconnection failed - unauthorized")
+                            completion(false, "Token expired or invalid")
+
+                        default:
+                            BaseDb.log.error("Token-based reconnection failed - server error: %d", ctrl.code)
+                            completion(false, "Connection failed with code: \(ctrl.code)")
+                        }
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        BaseDb.log.error("Token-based reconnection failed - no response from server")
+                        completion(false, "No response from server")
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    BaseDb.log.error("Token-based reconnection failed - connection error: %@", error.localizedDescription)
+                    completion(false, error.localizedDescription)
+                }
+            }
+        }
     }
 }
 
