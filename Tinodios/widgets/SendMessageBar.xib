@@ -14,6 +14,8 @@
             <connections>
                 <outlet property="allDisabledView" destination="yZd-O5-BVm" id="NDo-mO-Zal"/>
                 <outlet property="attachButton" destination="Sxl-U7-4Vy" id="rfU-nC-MBm"/>
+                <outlet property="attachButtonWidth" destination="vxu-KV-i5b" id="ATT-BW-CON"/>
+                <outlet property="attachButtonTrailingSpace" destination="cn1-M7-S72" id="ATT-TS-CON"/>
                 <outlet property="audioDurationLabel" destination="qth-4i-e5b" id="a09-TT-xNA"/>
                 <outlet property="audioDurationLabelHeight" destination="GWc-yT-2lP" id="WyT-cq-Byw"/>
                 <outlet property="audioView" destination="4PB-Gh-5Iz" id="xG6-Fw-Xgy"/>

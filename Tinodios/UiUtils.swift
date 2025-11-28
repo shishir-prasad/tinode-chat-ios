@@ -882,62 +882,155 @@ class UiUtils {
         guard let window = (UIApplication.shared.delegate as? AppDelegate)?.window,
               let rootVC = window.rootViewController else { return }
 
-        // Remove existing banner
-        rootVC.view.subviews.filter { $0.tag == 999 }.forEach { $0.removeFromSuperview() }
+        // Remove existing banner with animation
+        if let existingBanner = rootVC.view.subviews.first(where: { $0.tag == 999 }) {
+            UIView.animate(withDuration: 0.2, animations: {
+                existingBanner.alpha = 0
+                existingBanner.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
+            }) { _ in
+                existingBanner.removeFromSuperview()
+            }
+        }
 
         let banner = createStatusBanner(for: status)
         banner.tag = 999
+        banner.alpha = 0
+        banner.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
         rootVC.view.addSubview(banner)
 
-        // Position banner
+        // Position as floating notification (centered, compact)
         banner.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            banner.topAnchor.constraint(equalTo: rootVC.view.safeAreaLayoutGuide.topAnchor),
-            banner.leadingAnchor.constraint(equalTo: rootVC.view.leadingAnchor),
-            banner.trailingAnchor.constraint(equalTo: rootVC.view.trailingAnchor),
-            banner.heightAnchor.constraint(equalToConstant: 30)
+            banner.centerXAnchor.constraint(equalTo: rootVC.view.centerXAnchor),
+            banner.topAnchor.constraint(equalTo: rootVC.view.safeAreaLayoutGuide.topAnchor, constant: 12),
+            banner.heightAnchor.constraint(equalToConstant: 40),
+            banner.widthAnchor.constraint(lessThanOrEqualToConstant: 280),
+            banner.widthAnchor.constraint(greaterThanOrEqualToConstant: 120)
         ])
 
-        // Auto-hide after delay for success status
-        if status == .connected {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                banner.removeFromSuperview()
+        // Add dismiss functionality
+        if let dismissButton = banner.subviews.first(where: { $0.tag == 1001 }) as? UIButton {
+            dismissButton.addTarget(self, action: #selector(dismissConnectionBanner), for: .touchUpInside)
+        }
+
+        // Animate in
+        UIView.animate(withDuration: 0.3, delay: 0, options: .curveEaseOut) {
+            banner.alpha = 1
+            banner.transform = CGAffineTransform(scaleX: 1.0, y: 1.0)
+        }
+
+        // Smart auto-hide logic with status-dependent timers
+        let autoHideDelay: TimeInterval = {
+            switch status {
+            case .connected: return 3.0
+            case .reconnecting: return 0 // Don't auto-hide
+            case .offline: return 10.0
+            case .authenticationIssue: return 0 // Don't auto-hide
+            }
+        }()
+
+        if autoHideDelay > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + autoHideDelay) {
+                dismissConnectionBanner()
             }
         }
     }
 
-    private static func createStatusBanner(for status: ConnectionStatus) -> UIView {
-        let banner = UIView()
-        banner.layer.cornerRadius = 4
+    @objc private static func dismissConnectionBanner() {
+        guard let window = (UIApplication.shared.delegate as? AppDelegate)?.window,
+              let rootVC = window.rootViewController,
+              let banner = rootVC.view.subviews.first(where: { $0.tag == 999 }) else { return }
 
+        UIView.animate(withDuration: 0.2, animations: {
+            banner.alpha = 0
+            banner.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
+        }) { _ in
+            banner.removeFromSuperview()
+        }
+    }
+
+    private static func createStatusBanner(for status: ConnectionStatus) -> UIView {
+        let container = UIView()
+        container.backgroundColor = UIColor.black.withAlphaComponent(0.85)
+        container.layer.cornerRadius = 20
+        container.layer.shadowColor = UIColor.black.cgColor
+        container.layer.shadowOpacity = 0.3
+        container.layer.shadowOffset = CGSize(width: 0, height: 2)
+        container.layer.shadowRadius = 8
+
+        // Status indicator (colored dot)
+        let statusDot = UIView()
+        statusDot.layer.cornerRadius = 4
+
+        // Main label
         let label = UILabel()
-        label.textAlignment = .center
-        label.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+        label.font = UIFont.systemFont(ofSize: 14, weight: .medium)
         label.textColor = .white
+
+        // Dismiss button
+        let dismissButton = UIButton(type: .system)
+        dismissButton.setImage(UIImage(systemName: "xmark"), for: .normal)
+        dismissButton.tintColor = UIColor.white.withAlphaComponent(0.7)
+        dismissButton.tag = 1001 // Tag for identification
 
         switch status {
         case .connected:
-            banner.backgroundColor = .systemGreen
+            statusDot.backgroundColor = .systemGreen
             label.text = NSLocalizedString("Connected", comment: "Status message")
         case .reconnecting:
-            banner.backgroundColor = .systemOrange
+            statusDot.backgroundColor = .systemOrange
             label.text = NSLocalizedString("Reconnecting...", comment: "Status message")
+            // Add spinning animation for reconnecting
+            addSpinningAnimation(to: statusDot)
         case .offline:
-            banner.backgroundColor = .systemRed
+            statusDot.backgroundColor = .systemRed
             label.text = NSLocalizedString("Offline", comment: "Status message")
         case .authenticationIssue:
-            banner.backgroundColor = .systemRed
-            label.text = NSLocalizedString("Authentication Issue", comment: "Status message")
+            statusDot.backgroundColor = .systemRed
+            label.text = NSLocalizedString("Auth Issue", comment: "Status message")
         }
 
-        banner.addSubview(label)
-        label.translatesAutoresizingMaskIntoConstraints = false
+        // Layout components horizontally
+        [statusDot, label, dismissButton].forEach {
+            container.addSubview($0)
+            $0.translatesAutoresizingMaskIntoConstraints = false
+        }
+
         NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: banner.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: banner.centerYAnchor)
+            // Status dot constraints
+            statusDot.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            statusDot.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            statusDot.widthAnchor.constraint(equalToConstant: 8),
+            statusDot.heightAnchor.constraint(equalToConstant: 8),
+
+            // Label constraints
+            label.leadingAnchor.constraint(equalTo: statusDot.trailingAnchor, constant: 8),
+            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+
+            // Dismiss button constraints
+            dismissButton.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 12),
+            dismissButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+            dismissButton.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            dismissButton.widthAnchor.constraint(equalToConstant: 24),
+            dismissButton.heightAnchor.constraint(equalToConstant: 24)
         ])
 
-        return banner
+        // Accessibility support
+        container.isAccessibilityElement = true
+        container.accessibilityLabel = label.text
+        container.accessibilityTraits = .button
+        container.accessibilityHint = NSLocalizedString("Tap to dismiss", comment: "Accessibility hint")
+
+        return container
+    }
+
+    private static func addSpinningAnimation(to view: UIView) {
+        let animation = CABasicAnimation(keyPath: "transform.rotation")
+        animation.fromValue = 0
+        animation.toValue = Double.pi * 2
+        animation.duration = 1.0
+        animation.repeatCount = .infinity
+        view.layer.add(animation, forKey: "spin")
     }
 }
 

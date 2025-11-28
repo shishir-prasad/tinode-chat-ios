@@ -75,6 +75,8 @@ class SendMessageBar: UIView {
     // MARK: IBOutlets
 
     @IBOutlet weak var attachButton: UIButton!
+    @IBOutlet weak var attachButtonWidth: NSLayoutConstraint!
+    @IBOutlet weak var attachButtonTrailingSpace: NSLayoutConstraint!
     @IBOutlet weak var sendButton: UIButton!
     @IBOutlet weak var sendButtonSize: NSLayoutConstraint!
     @IBOutlet weak var sendButtonHorizontal: NSLayoutConstraint!
@@ -321,6 +323,9 @@ class SendMessageBar: UIView {
         }
 
         sendButton.isEnabled = true
+        attachButton.isHidden = true  // Hide attachment button
+        attachButtonWidth.constant = 0  // Set width to 0
+        attachButtonTrailingSpace.constant = 0  // Remove spacing
         toggleNotAvailableOverlay(visible: false)
         togglePeerMessagingDisabled(visible: false)
         togglePendingPreviewBar(withMessage: nil)
@@ -390,7 +395,9 @@ class SendMessageBar: UIView {
         if state == .hidden {
             // Bar hidden.
             inputField.show(true, height: Constants.kInitialInputFieldHeight)
-            attachButton.isHidden = false
+            attachButton.isHidden = true  // Keep attachment button hidden
+            attachButtonWidth.constant = 0  // Keep width at 0
+            attachButtonTrailingSpace.constant = 0  // Keep spacing at 0
             // audioDurationLabel.show(false)
             audioDurationLabel.isHidden = true
             wavePreviewImageView.isHidden = true
@@ -403,6 +410,8 @@ class SendMessageBar: UIView {
             inputField.resignFirstResponder() // Otherwise it does not hide
             inputField.show(false)
             attachButton.isHidden = true
+            attachButtonWidth.constant = 0  // Keep width at 0
+            attachButtonTrailingSpace.constant = 0  // Keep spacing at 0
             audioDurationLabel.isHidden = false
             audioDurationLabel.show(true, height: 40)
             audioDurationLabel.sizeToFit()
