@@ -26,6 +26,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var voipRegistry: PKPushRegistry!
 
+    // Intelligent startup authentication properties
+    private var startupRetryCount = 0
+    private let maxStartupRetries = 3
+
     // Video call event listener (responsible for displaying and dismissing Call UI).
     class CallEventListener: TinodeEventListener {
         func onInfoMessage(info: MsgServerInfo?) {
@@ -101,17 +105,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         registerForVoip()
 
-        // Try to connect and login in the background.
-        DispatchQueue.global(qos: .userInitiated).async {
-            if !SharedUtils.connectAndLoginSync(using: Cache.tinode, inBackground: false) {
-                if SharedUtils.kEnableAutoLogout {
-                    UiUtils.logoutAndRouteToLoginVC()
-                } else {
-                    Cache.log.info("Background authentication failed - will retry on user interaction")
-                    // Set a flag for retry or handle gracefully without logout
-                }
-            }
-        }
+        // NEW: Intelligent startup authentication
+        performIntelligentStartup()
         Cache.tinode.addListener(self.callListener)
         DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + .seconds(10)) {
             let reachability = NWPathMonitor()
@@ -162,7 +157,35 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 messageVC.performSegue(withIdentifier: "Messages2Call", sender: call)
             }
         }
+
+        // Enhanced: Handle WebSocket reconnection after app becomes active
+        if !self.appIsStarting {
+            handleAppReactivation()
+        }
+
         self.appIsStarting = false
+    }
+
+    private func handleAppReactivation() {
+        // Check if we need to reconnect after app was terminated
+        if !Cache.tinode.isConnected && SharedUtils.isTokenValid() {
+            Cache.log.info("App reactivated - attempting token-based reconnection")
+
+            SharedUtils.attemptTokenBasedReconnection(using: Cache.tinode) { success, errorMessage in
+                if success {
+                    Cache.log.info("App reactivation reconnection successful")
+                    UiUtils.showConnectionStatusBanner(status: .connected)
+                } else {
+                    Cache.log.info("App reactivation reconnection failed: %@", errorMessage ?? "Unknown error")
+                    UiUtils.showConnectionStatusBanner(status: .reconnecting)
+
+                    // Schedule retry if appropriate
+                    if SharedUtils.shouldAttemptAutoReconnection() {
+                        self.scheduleStartupRetry()
+                    }
+                }
+            }
+        }
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
@@ -336,6 +359,171 @@ extension AppDelegate: PKPushRegistryDelegate {
         default:
             completion()
             break
+        }
+    }
+
+    // MARK: - Intelligent Startup Authentication
+
+    enum StartupAuthResult {
+        case success
+        case tokenExpired
+        case networkFailure
+        case credentialsInvalid
+        case noCredentials
+    }
+
+    // NEW: Intelligent startup logic
+    private func performIntelligentStartup() {
+        // Quick credential check first
+        guard let userName = SharedUtils.getSavedLoginUserName(), !userName.isEmpty else {
+            Cache.log.info("No saved credentials - routing to login immediately")
+            UiUtils.routeToLoginVC()
+            return
+        }
+
+        guard SharedUtils.isTokenValid() else {
+            Cache.log.info("Token invalid - routing to login immediately")
+            UiUtils.routeToLoginVC()
+            return
+        }
+
+        // If we have valid credentials, route to chat list and attempt connection in background
+        Cache.log.info("Valid credentials found - routing to chat list")
+        UiUtils.routeToChatListVCWithConnectionCheck()
+
+        // Try background connection with timeout
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.attemptBackgroundConnection()
+        }
+    }
+
+    private func attemptBackgroundConnection() {
+        let timeout: DispatchTime = .now() + .seconds(10)
+        var connectionCompleted = false
+
+        SharedUtils.attemptTokenBasedReconnection(using: Cache.tinode) { success, errorMessage in
+            connectionCompleted = true
+            if success {
+                Cache.log.info("Background connection successful")
+                DispatchQueue.main.async {
+                    UiUtils.showConnectionStatusBanner(status: .connected)
+                }
+            } else {
+                Cache.log.info("Background connection failed: %@", errorMessage ?? "Unknown error")
+                DispatchQueue.main.async {
+                    if let error = errorMessage, error.contains("Token expired") {
+                        // Token expired - might need to login again
+                        if SharedUtils.kEnableAutoLogout {
+                            UiUtils.routeToLoginVC()
+                        }
+                    }
+                    // For other errors, just show reconnecting status
+                    UiUtils.showConnectionStatusBanner(status: .reconnecting)
+                }
+            }
+        }
+
+        // Timeout protection
+        DispatchQueue.global(qos: .background).asyncAfter(deadline: timeout) {
+            if !connectionCompleted {
+                Cache.log.info("Background connection timed out")
+                DispatchQueue.main.async {
+                    UiUtils.showConnectionStatusBanner(status: .reconnecting)
+                }
+            }
+        }
+    }
+
+
+    private func getLastConnectionError() -> String? {
+        // This would ideally capture the last connection error
+        // For now, we'll use a simple approach based on connection state
+        if !Cache.tinode.isConnected {
+            return "connection failure"
+        }
+        return nil
+    }
+
+    private func attemptTokenRefreshAndRoute() {
+        Cache.log.info("Attempting enhanced token-based reconnection")
+
+        SharedUtils.attemptTokenBasedReconnection(using: Cache.tinode) { [weak self] success, errorMessage in
+            if success {
+                Cache.log.info("Enhanced token reconnection successful - routing to chat list")
+                UiUtils.routeToChatListVC()
+                UiUtils.showConnectionStatusBanner(status: .connected)
+            } else {
+                Cache.log.info("Enhanced token reconnection failed: %@", errorMessage ?? "Unknown error")
+
+                // Check if this is a network issue or auth issue
+                if let error = errorMessage,
+                   (error.contains("network") || error.contains("timeout") || error.contains("connection")) {
+                    // Network issue - route to chat list with retry indicator
+                    UiUtils.routeToChatListVCWithConnectionCheck()
+                    self?.scheduleStartupRetry()
+                } else {
+                    // Auth issue - route to login
+                    UiUtils.routeToLoginVC()
+                }
+            }
+        }
+    }
+
+    private func performSilentTokenRefresh() -> Bool {
+        guard let username = SharedUtils.getSavedLoginUserName(),
+              let currentToken = SharedUtils.getAuthToken() else {
+            return false
+        }
+
+        do {
+            Cache.tinode.setAutoLoginWithSSO(token: currentToken)
+            let msg = try Cache.tinode.connectDefault(inBackground: false)?.getResult()
+
+            if let ctrl = msg?.ctrl, ctrl.code < 300 {
+                if let newToken = Cache.tinode.authToken, newToken != currentToken {
+                    SharedUtils.saveAuthToken(for: username, token: newToken, expires: Cache.tinode.authTokenExpires)
+                    Cache.log.info("Token successfully refreshed during startup")
+                }
+                return true
+            }
+            return false
+        } catch {
+            Cache.log.error("Startup token refresh failed: %@", error.localizedDescription)
+            return false
+        }
+    }
+
+    private func scheduleStartupRetry() {
+        guard startupRetryCount < maxStartupRetries,
+              SharedUtils.shouldAttemptAutoReconnection() else {
+            Cache.log.info("Max startup retries reached or auto-reconnection disabled")
+            return
+        }
+
+        startupRetryCount += 1
+        let delay = TimeInterval(startupRetryCount * 5) // 5, 10, 15 seconds
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            Cache.log.info("Attempting startup retry #%d", self.startupRetryCount)
+            self.performBackgroundReconnection()
+        }
+    }
+
+    private func performBackgroundReconnection() {
+        DispatchQueue.global(qos: .background).async {
+            let success = SharedUtils.connectAndLoginSync(using: Cache.tinode, inBackground: true)
+
+            DispatchQueue.main.async {
+                if success {
+                    Cache.log.info("Background reconnection successful")
+                    UiUtils.showConnectionStatusBanner(status: .connected)
+                    SharedUtils.recordSuccessfulConnection()
+                    self.startupRetryCount = 0 // Reset on success
+                } else if self.startupRetryCount < self.maxStartupRetries {
+                    Cache.log.info("Background reconnection failed - scheduling retry")
+                    self.scheduleStartupRetry()
+                }
+            }
         }
     }
 }

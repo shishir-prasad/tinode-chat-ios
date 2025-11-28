@@ -753,7 +753,7 @@ extension MessageViewController: UICollectionViewDataSource {
             cell.deliveryMarker.image = image
             cell.deliveryMarker.tintColor = tint
         }
-        let markerTextColor = isFromCurrentSender(message: message) ?  UIColor.lightText:UIColor.gray 
+        let markerTextColor = isFromCurrentSender(message: message) ?  UIColor.white:UIColor.gray 
         if let ts = message.ts {
             cell.timestampLabel.text = RelativeDateFormatter.shared.timeOnly(from: ts)
             cell.timestampLabel.textColor = markerTextColor

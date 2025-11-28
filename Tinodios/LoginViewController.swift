@@ -242,7 +242,7 @@ class LoginViewController: UIViewController {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let tinode = Cache.tinode
             do {
-                tinode.setAutoLoginWithToken(token: token)
+                tinode.setAutoLoginWithSSO(token: token)
                 let success = try tinode.connectDefault(inBackground: true)?.getResult()
 
                 if let ctrl = success?.ctrl, ctrl.code < 300 {
@@ -548,7 +548,7 @@ class LoginViewController: UIViewController {
                     onSuccess: { [weak self] pkt in
                         Cache.log.info("LoginVC - Token login successful for %@", tinode.myUid!)
                         if let token = tinode.authToken {
-                            tinode.setAutoLoginWithToken(token: token)
+                            tinode.setAutoLoginWithSSO(token: token)
                         }
                         if let ctrl = pkt?.ctrl, ctrl.code >= 300, ctrl.text.contains("validate credentials") {
                             DispatchQueue.main.async { [weak self] in
@@ -568,7 +568,7 @@ class LoginViewController: UIViewController {
                             onSuccess: { pkt in
                                 Cache.log.info("LoginVC - SSO login successful for %@", tinode.myUid!)
                                 if let token = tinode.authToken {
-                                    tinode.setAutoLoginWithToken(token: token)
+                                    tinode.setAutoLoginWithSSO(token: token)
                                 }
                                 UiUtils.routeToChatListVC()
                                 return nil

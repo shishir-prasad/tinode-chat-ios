@@ -276,7 +276,7 @@ class UiUtils {
         }
     }
 
-    private static func routeToLoginVC(completion: (() -> (Void))? = nil) {
+    public static func routeToLoginVC(completion: (() -> (Void))? = nil) {
         DispatchQueue.main.async {
             let storyboard = UIStoryboard(name: "Main", bundle: nil)
             let destinationVC = storyboard.instantiateViewController(withIdentifier: "StartNavigator") as! UINavigationController
@@ -310,6 +310,19 @@ class UiUtils {
                 window.rootViewController = initialViewController
             }
             UiUtils.setUpPushNotifications()
+        }
+    }
+
+    // NEW: Enhanced routing with connection check
+    public static func routeToChatListVCWithConnectionCheck() {
+        // Route to chat list but show connection status
+        routeToChatListVC()
+
+        // Check connection status after routing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            if !Cache.tinode.isConnected {
+                UiUtils.showConnectionStatusBanner(status: .reconnecting)
+            }
         }
     }
 
@@ -854,6 +867,77 @@ class UiUtils {
         guard original.count > UiUtils.kPreviewMaxFileNameLength else { return original }
         let len = UiUtils.kPreviewMaxFileNameLength / 2
         return original.prefix(len) + "…" + original.suffix(len)
+    }
+
+    // MARK: - Connection Status Indicators
+
+    public enum ConnectionStatus {
+        case connected
+        case reconnecting
+        case offline
+        case authenticationIssue
+    }
+
+    public static func showConnectionStatusBanner(status: ConnectionStatus) {
+        guard let window = (UIApplication.shared.delegate as? AppDelegate)?.window,
+              let rootVC = window.rootViewController else { return }
+
+        // Remove existing banner
+        rootVC.view.subviews.filter { $0.tag == 999 }.forEach { $0.removeFromSuperview() }
+
+        let banner = createStatusBanner(for: status)
+        banner.tag = 999
+        rootVC.view.addSubview(banner)
+
+        // Position banner
+        banner.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            banner.topAnchor.constraint(equalTo: rootVC.view.safeAreaLayoutGuide.topAnchor),
+            banner.leadingAnchor.constraint(equalTo: rootVC.view.leadingAnchor),
+            banner.trailingAnchor.constraint(equalTo: rootVC.view.trailingAnchor),
+            banner.heightAnchor.constraint(equalToConstant: 30)
+        ])
+
+        // Auto-hide after delay for success status
+        if status == .connected {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                banner.removeFromSuperview()
+            }
+        }
+    }
+
+    private static func createStatusBanner(for status: ConnectionStatus) -> UIView {
+        let banner = UIView()
+        banner.layer.cornerRadius = 4
+
+        let label = UILabel()
+        label.textAlignment = .center
+        label.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+        label.textColor = .white
+
+        switch status {
+        case .connected:
+            banner.backgroundColor = .systemGreen
+            label.text = NSLocalizedString("Connected", comment: "Status message")
+        case .reconnecting:
+            banner.backgroundColor = .systemOrange
+            label.text = NSLocalizedString("Reconnecting...", comment: "Status message")
+        case .offline:
+            banner.backgroundColor = .systemRed
+            label.text = NSLocalizedString("Offline", comment: "Status message")
+        case .authenticationIssue:
+            banner.backgroundColor = .systemRed
+            label.text = NSLocalizedString("Authentication Issue", comment: "Status message")
+        }
+
+        banner.addSubview(label)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: banner.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: banner.centerYAnchor)
+        ])
+
+        return banner
     }
 }
 
