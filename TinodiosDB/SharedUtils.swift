@@ -42,7 +42,7 @@ public class SharedUtils {
     // Auto logout control flag.
     // Set to false to disable automatic logout on authentication errors.
     // Manual logout will still work through user interface.
-    public static let kEnableAutoLogout = true
+    public static let kEnableAutoLogout: Bool = false
 
     // Application metadata version.
     // Bump it up whenever you change the application metadata and
