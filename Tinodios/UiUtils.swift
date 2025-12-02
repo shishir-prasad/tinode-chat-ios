@@ -101,9 +101,9 @@ class UiUtils {
     static let kMaxTopicDescriptionLength = 360
 
     // Color of "read" delivery marker.
-    static let kDeliveryMarkerTint = UIColor(red: 19/255, green: 144/255, blue: 255/255, alpha: 0.8)
+    static let kDeliveryMarkerTint = UIColor.gray.withAlphaComponent(0.7)
     // Color of all other markers.
-    static let kDeliveryMarkerColor = UIColor.gray.withAlphaComponent(0.7)
+    static let kDeliveryMarkerColor = UIColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 0.8) 
 
     // Maximum length of the quoted part in a reply.
     static let kQuotedReplyLength = 30
