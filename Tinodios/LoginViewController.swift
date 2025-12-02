@@ -242,7 +242,7 @@ class LoginViewController: UIViewController {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let tinode = Cache.tinode
             do {
-                tinode.setAutoLoginWithSSO(token: token)
+                tinode.setAutoLoginWithToken(token: token)
                 let success = try tinode.connectDefault(inBackground: true)?.getResult()
 
                 if let ctrl = success?.ctrl, ctrl.code < 300 {
@@ -547,8 +547,10 @@ class LoginViewController: UIViewController {
                 .then(
                     onSuccess: { [weak self] pkt in
                         Cache.log.info("LoginVC - Token login successful for %@", tinode.myUid!)
-                        if let token = tinode.authToken {
-                            tinode.setAutoLoginWithSSO(token: token)
+                        if let authToken = tinode.authToken {
+                            if let username = SharedUtils.getSavedLoginUserName() {
+                                SharedUtils.saveAuthToken(for: username, token: authToken, expires: tinode.authTokenExpires)
+                            }
                         }
                         if let ctrl = pkt?.ctrl, ctrl.code >= 300, ctrl.text.contains("validate credentials") {
                             DispatchQueue.main.async { [weak self] in
@@ -567,8 +569,10 @@ class LoginViewController: UIViewController {
                         return tinode.loginSSO(token: token).then(
                             onSuccess: { pkt in
                                 Cache.log.info("LoginVC - SSO login successful for %@", tinode.myUid!)
-                                if let token = tinode.authToken {
-                                    tinode.setAutoLoginWithSSO(token: token)
+                                if let authToken = tinode.authToken {
+                                    if let username = SharedUtils.getSavedLoginUserName() {
+                                        SharedUtils.saveAuthToken(for: username, token: authToken, expires: tinode.authTokenExpires)
+                                    }
                                 }
                                 UiUtils.routeToChatListVC()
                                 return nil

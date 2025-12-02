@@ -697,8 +697,7 @@ public class SharedUtils {
 
         BaseDb.log.info("Attempting token-based reconnection for user: %@", userName,token)
 
-        // Set up connection with stored token
-        tinode.setAutoLoginWithSSO(token: token)
+        tinode.setAutoLoginWithToken(token: token)
 
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -708,20 +707,21 @@ public class SharedUtils {
                         switch ctrl.code {
                         case 0..<300:
                             let myUid = ctrl.getStringParam(for: "user")
-                            BaseDb.log.info("Token-based reconnection successful for: %@", myUid!)
+                            BaseDb.log.info("Token-based reconnection successful for: %@", myUid ?? "unknown")
 
                             // Update token if server provided a new one
-                            if tinode.authToken != token {
-                                saveAuthToken(for: userName, token: tinode.authToken, expires: tinode.authTokenExpires)
+                            if let newAuthToken = tinode.authToken, newAuthToken != token {
+                                saveAuthToken(for: userName, token: newAuthToken, expires: tinode.authTokenExpires)
                                 BaseDb.log.info("Updated auth token after successful reconnection")
                             }
 
                             recordSuccessfulConnection()
                             completion(true, nil)
 
-                        case 401:
-                            BaseDb.log.error("Token-based reconnection failed - unauthorized")
-                            completion(false, "Token expired or invalid")
+                        case 401, 403, 404:
+                            BaseDb.log.error("Token-based reconnection failed - unauthorized (code: %d)", ctrl.code)
+                            removeAuthToken()
+                            completion(false, "AUTH_ERROR")
 
                         default:
                             BaseDb.log.error("Token-based reconnection failed - server error: %d", ctrl.code)
@@ -737,7 +737,16 @@ public class SharedUtils {
             } catch {
                 DispatchQueue.main.async {
                     BaseDb.log.error("Token-based reconnection failed - connection error: %@", error.localizedDescription)
-                    completion(false, error.localizedDescription)
+
+                    // Check if it's an auth error
+                    if let tinodeError = error as? TinodeError,
+                       case .serverResponseError(let code, _, _) = tinodeError,
+                       (code == 401 || code == 403 || code == 404) {
+                        removeAuthToken()
+                        completion(false, "AUTH_ERROR")
+                    } else {
+                        completion(false, error.localizedDescription)
+                    }
                 }
             }
         }
