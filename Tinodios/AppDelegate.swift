@@ -382,7 +382,7 @@ extension AppDelegate: PKPushRegistryDelegate {
         }
 
         guard SharedUtils.isTokenValid() else {
-            Cache.log.info("Token invalid - routing to login immediately")
+            Cache.log.info("Token invalid or expired - routing to login immediately")
             UiUtils.routeToLoginVC()
             return
         }
@@ -409,16 +409,18 @@ extension AppDelegate: PKPushRegistryDelegate {
                     UiUtils.showConnectionStatusBanner(status: .connected)
                 }
             } else {
-                Cache.log.info("Background connection failed: %@", errorMessage ?? "Unknown error")
-                DispatchQueue.main.async {
-                    if let error = errorMessage, error.contains("Token expired") {
-                        // Token expired - might need to login again
-                        if SharedUtils.kEnableAutoLogout {
-                            UiUtils.routeToLoginVC()
-                        }
+                Cache.log.error("Background connection failed: %@", errorMessage ?? "Unknown error")
+
+                // Check if it's an auth error that requires re-login
+                if errorMessage == "AUTH_ERROR" {
+                    DispatchQueue.main.async {
+                        Cache.invalidate()
+                        UiUtils.routeToLoginVC()
                     }
-                    // For other errors, just show reconnecting status
-                    UiUtils.showConnectionStatusBanner(status: .reconnecting)
+                } else {
+                    DispatchQueue.main.async {
+                        UiUtils.showConnectionStatusBanner(status: .reconnecting)
+                    }
                 }
             }
         }
@@ -476,7 +478,7 @@ extension AppDelegate: PKPushRegistryDelegate {
         }
 
         do {
-            Cache.tinode.setAutoLoginWithSSO(token: currentToken)
+            Cache.tinode.setAutoLoginWithToken(token: currentToken)
             let msg = try Cache.tinode.connectDefault(inBackground: false)?.getResult()
 
             if let ctrl = msg?.ctrl, ctrl.code < 300 {

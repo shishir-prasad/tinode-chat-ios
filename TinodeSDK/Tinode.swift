@@ -1001,7 +1001,7 @@ public class Tinode {
             }
             isConnectionAuthenticated = true
             store?.myUid = newUid
-            setAutoLoginWithSSO(token: authToken!)
+            setAutoLoginWithToken(token: authToken!)
             // Load topics if not yet loaded.
             loadTopics()
             listenerNotifier.onLogin(code: ctrl.code, text: ctrl.text)
