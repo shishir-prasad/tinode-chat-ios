@@ -747,6 +747,13 @@ extension MessageViewController: UICollectionViewDataSource {
             let text = NSMutableAttributedString(attributedString: attributedText)
             text.append(NSAttributedString(string: carveout, attributes: [.font: Constants.kContentFont]))
             cell.content.attributedText = text
+
+            // Configure link text attributes to override system link colors
+            let linkColor = isFromCurrentSender(message: message) && !message.isDeleted ? UIColor.white : UIColor.link
+            cell.content.linkTextAttributes = [
+                NSAttributedString.Key.foregroundColor: linkColor,
+                NSAttributedString.Key.underlineStyle: NSUnderlineStyle.single.rawValue
+            ]
         }
 
         if let (image, tint) = deliveryMarker(for: message) {
