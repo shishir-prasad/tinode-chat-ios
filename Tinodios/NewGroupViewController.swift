@@ -13,6 +13,7 @@ protocol NewGroupDisplayLogic: AnyObject {
 
 class NewGroupViewController: UITableViewController {
     @IBOutlet weak var saveButtonItem: UIBarButtonItem!
+    @IBOutlet weak var saveGroupButtonItem: UIBarButtonItem!
     @IBOutlet weak var groupNameTextField: UITextField!
     @IBOutlet weak var privateTextField: UITextField!
     @IBOutlet weak var tagsTextField: TagsEditView!
@@ -57,12 +58,15 @@ class NewGroupViewController: UITableViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
-        self.tabBarController?.navigationItem.rightBarButtonItem = saveButtonItem
+        // Create new group section with both save buttons in navigation bar
+        let saveGroupSection = [saveGroupButtonItem, saveButtonItem].compactMap { $0 }
+        self.tabBarController?.navigationItem.rightBarButtonItems = saveGroupSection
     }
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
 
-        self.tabBarController?.navigationItem.rightBarButtonItem = nil
+        // Clear navigation bar buttons when leaving
+        self.tabBarController?.navigationItem.rightBarButtonItems = nil
     }
 
     @objc func textFieldDidChange(_ textField: UITextField) {
@@ -139,6 +143,27 @@ class NewGroupViewController: UITableViewController {
         guard !groupName.isEmpty else { return }
         let avatar = avatarReceived ? avatarView.image?.resize(width: CGFloat(UiUtils.kMaxAvatarSize), height: CGFloat(UiUtils.kMaxAvatarSize), clip: true) : nil
         createGroupTopic(titled: groupName, subtitled: privateInfo, with: tagsTextField.tags, consistingOf: members, withAvatar: avatar, asChannel: channelSwitch.isOn)
+    }
+
+    @IBAction func saveGroupButtonClicked(_ sender: Any) {
+        // Dedicated save group action for the new button
+        let groupName = UiUtils.ensureDataInTextField(groupNameTextField, maxLength: UiUtils.kMaxTitleLength)
+        let tinode = Cache.tinode
+        let members = selectedMembers.filter { !tinode.isMe(uid: $0) }
+        if members.isEmpty {
+            UiUtils.showToast(message: NSLocalizedString("Select at least one group member", comment: "Error message"))
+            return
+        }
+        // Optional
+        let privateInfo = String((privateTextField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).prefix(UiUtils.kMaxTitleLength))
+        guard !groupName.isEmpty else { return }
+        let avatar = avatarReceived ? avatarView.image?.resize(width: CGFloat(UiUtils.kMaxAvatarSize), height: CGFloat(UiUtils.kMaxAvatarSize), clip: true) : nil
+
+        // Save group with additional validation or different behavior
+        createGroupTopic(titled: groupName, subtitled: privateInfo, with: tagsTextField.tags, consistingOf: members, withAvatar: avatar, asChannel: channelSwitch.isOn)
+
+        // Show confirmation message for save group action
+        UiUtils.showToast(message: NSLocalizedString("Group saved successfully", comment: "Success message"))
     }
 
     /// Show message that no members are selected.

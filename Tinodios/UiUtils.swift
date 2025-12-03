@@ -101,9 +101,9 @@ class UiUtils {
     static let kMaxTopicDescriptionLength = 360
 
     // Color of "read" delivery marker.
-    static let kDeliveryMarkerTint = UIColor(red: 19/255, green: 144/255, blue: 255/255, alpha: 0.8)
+    static let kDeliveryMarkerTint = UIColor.gray.withAlphaComponent(0.7)
     // Color of all other markers.
-    static let kDeliveryMarkerColor = UIColor.gray.withAlphaComponent(0.7)
+    static let kDeliveryMarkerColor = UIColor(red: 255/255, green: 255/255, blue: 255/255, alpha: 0.8) 
 
     // Maximum length of the quoted part in a reply.
     static let kQuotedReplyLength = 30
@@ -214,7 +214,14 @@ class UiUtils {
                     if case TinodeError.serverResponseError(let code, let text, _) = e {
                         switch code {
                         case 404:
-                            UiUtils.logoutAndRouteToLoginVC()
+                            if SharedUtils.kEnableAutoLogout {
+                                UiUtils.logoutAndRouteToLoginVC()
+                            } else {
+                                Cache.log.info("ME topic not found - connection issue")
+                                UiUtils.showToast(message: NSLocalizedString("Connection error. Please check your network.", comment: "Error"))
+                                // Attempt reconnection
+                                Cache.tinode.reconnectNow(interactively: false, reset: false)
+                            }
                         case 502:
                             if text == "cluster unreachable" {
                                 Cache.tinode.reconnectNow(interactively: false, reset: true)
@@ -237,13 +244,39 @@ class UiUtils {
     }
 
     public static func logoutAndRouteToLoginVC() {
-        Cache.log.info("UiUtils - Invalidating cache and logging out.")
-        SharedUtils.removeAuthToken()
-        Cache.invalidate()
-        UiUtils.routeToLoginVC()
+        Cache.log.info("UiUtils - Starting complete session reset and logout.")
+        performCompleteLogout {
+            UiUtils.routeToLoginVC()
+        }
     }
 
-    private static func routeToLoginVC(completion: (() -> (Void))? = nil) {
+    private static func performCompleteLogout(completion: @escaping () -> Void) {
+        // Step 1: Clear authentication tokens immediately
+        SharedUtils.removeAuthToken()
+        Cache.log.info("UiUtils - Auth tokens cleared")
+
+        // Step 2: Force disconnect Tinode connection
+        let tinode = Cache.tinode
+        if tinode.isConnected {
+            tinode.disconnect()
+            Cache.log.info("UiUtils - Tinode connection disconnected")
+        }
+
+        // Step 3: Clear all cached state
+        Cache.invalidate()
+        Cache.log.info("UiUtils - Cache invalidated")
+
+        // Step 4: Clear any pending network operations
+        URLSession.shared.invalidateAndCancel()
+
+        // Step 5: Reset UI state with small delay to ensure cleanup completion
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            Cache.log.info("UiUtils - Session reset complete, routing to login")
+            completion()
+        }
+    }
+
+    public static func routeToLoginVC(completion: (() -> (Void))? = nil) {
         DispatchQueue.main.async {
             let storyboard = UIStoryboard(name: "Main", bundle: nil)
             let destinationVC = storyboard.instantiateViewController(withIdentifier: "StartNavigator") as! UINavigationController
@@ -277,6 +310,19 @@ class UiUtils {
                 window.rootViewController = initialViewController
             }
             UiUtils.setUpPushNotifications()
+        }
+    }
+
+    // NEW: Enhanced routing with connection check
+    public static func routeToChatListVCWithConnectionCheck() {
+        // Route to chat list but show connection status
+        routeToChatListVC()
+
+        // Check connection status after routing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            if !Cache.tinode.isConnected {
+                UiUtils.showConnectionStatusBanner(status: .reconnecting)
+            }
         }
     }
 
@@ -475,8 +521,30 @@ class UiUtils {
     @discardableResult
     public static func ToastFailureHandler(err: Error) -> PromisedReply<ServerMessage>? {
         DispatchQueue.main.async {
-            if let e = err as? TinodeError, case .notConnected = e {
-                UiUtils.showToast(message: NSLocalizedString("You are offline.", comment: "Toast notification"))
+            if let e = err as? TinodeError {
+                switch e {
+                case .notConnected(_):
+                    UiUtils.showToast(message: NSLocalizedString("You are offline.", comment: "Toast notification"))
+                case .invalidState(let reason):
+                    // Check if this is an authentication-related error
+                    if reason.lowercased().contains("authenticated") {
+                        Cache.log.info("UiUtils - Authentication error detected: %@", reason)
+                        if SharedUtils.kEnableAutoLogout {
+                            UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
+                            UiUtils.logoutAndRouteToLoginVC()
+                        } else {
+                            UiUtils.showToast(message: NSLocalizedString("Authentication error occurred. Please try again.", comment: "Toast notification"))
+                            // Attempt background reconnection
+                            DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 2.0) {
+                                Cache.tinode.reconnectNow(interactively: false, reset: false)
+                            }
+                        }
+                    } else {
+                        UiUtils.showToast(message: String(format: NSLocalizedString("Action failed: %@", comment: "Toast notification"), err.localizedDescription))
+                    }
+                default:
+                    UiUtils.showToast(message: String(format: NSLocalizedString("Action failed: %@", comment: "Toast notification"), err.localizedDescription))
+                }
             } else {
                 UiUtils.showToast(message: String(format: NSLocalizedString("Action failed: %@", comment: "Toast notification"), err.localizedDescription))
             }
@@ -496,6 +564,42 @@ class UiUtils {
 
     public static func showServerResponseErrorToast(for response: ServerMessage?) {
         DispatchQueue.main.async { UiUtils.showToast(message: String(format: "Server error: code (%d), '%@'", response?.ctrl?.code ?? 0, response?.ctrl?.text ?? "-")) }
+    }
+
+    /// Show authentication error with user-controlled recovery options
+    public static func showAuthenticationErrorWithOptions() {
+        DispatchQueue.main.async {
+            guard let window = (UIApplication.shared.delegate as? AppDelegate)?.window,
+                  let rootViewController = window.rootViewController else {
+                Cache.log.error("UiUtils - Cannot present alert: no root view controller")
+                return
+            }
+
+            let alert = UIAlertController(
+                title: NSLocalizedString("Authentication Error", comment: "Alert title"),
+                message: NSLocalizedString("There was an authentication issue. You can retry the connection or logout manually if needed.", comment: "Alert message"),
+                preferredStyle: .alert
+            )
+
+            // Retry option
+            alert.addAction(UIAlertAction(title: NSLocalizedString("Retry Connection", comment: "Alert button"), style: .default) { _ in
+                Cache.log.info("User chose to retry connection")
+                Cache.tinode.reconnectNow(interactively: true, reset: false)
+            })
+
+            // Manual logout option
+            alert.addAction(UIAlertAction(title: NSLocalizedString("Logout", comment: "Alert button"), style: .destructive) { _ in
+                Cache.log.info("User chose manual logout")
+                UiUtils.logoutAndRouteToLoginVC()
+            })
+
+            // Dismiss option
+            alert.addAction(UIAlertAction(title: NSLocalizedString("Dismiss", comment: "Alert button"), style: .cancel) { _ in
+                Cache.log.info("User dismissed authentication error")
+            })
+
+            rootViewController.present(alert, animated: true, completion: nil)
+        }
     }
 
     public static func showPermissionsEditDialog(over viewController: UIViewController?, acs: AcsHelper?, callback: PermissionsEditViewController.ChangeHandler?, disabledPermissions: String?) {
@@ -763,6 +867,77 @@ class UiUtils {
         guard original.count > UiUtils.kPreviewMaxFileNameLength else { return original }
         let len = UiUtils.kPreviewMaxFileNameLength / 2
         return original.prefix(len) + "…" + original.suffix(len)
+    }
+
+    // MARK: - Connection Status Indicators
+
+    public enum ConnectionStatus {
+        case connected
+        case reconnecting
+        case offline
+        case authenticationIssue
+    }
+
+    public static func showConnectionStatusBanner(status: ConnectionStatus) {
+        guard let window = (UIApplication.shared.delegate as? AppDelegate)?.window,
+              let rootVC = window.rootViewController else { return }
+
+        // Remove existing banner
+        rootVC.view.subviews.filter { $0.tag == 999 }.forEach { $0.removeFromSuperview() }
+
+        let banner = createStatusBanner(for: status)
+        banner.tag = 999
+        rootVC.view.addSubview(banner)
+
+        // Position banner
+        banner.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            banner.topAnchor.constraint(equalTo: rootVC.view.safeAreaLayoutGuide.topAnchor),
+            banner.leadingAnchor.constraint(equalTo: rootVC.view.leadingAnchor),
+            banner.trailingAnchor.constraint(equalTo: rootVC.view.trailingAnchor),
+            banner.heightAnchor.constraint(equalToConstant: 30)
+        ])
+
+        // Auto-hide after delay for success status
+        if status == .connected {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                banner.removeFromSuperview()
+            }
+        }
+    }
+
+    private static func createStatusBanner(for status: ConnectionStatus) -> UIView {
+        let banner = UIView()
+        banner.layer.cornerRadius = 4
+
+        let label = UILabel()
+        label.textAlignment = .center
+        label.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+        label.textColor = .white
+
+        switch status {
+        case .connected:
+            banner.backgroundColor = .systemGreen
+            label.text = NSLocalizedString("Connected", comment: "Status message")
+        case .reconnecting:
+            banner.backgroundColor = .systemOrange
+            label.text = NSLocalizedString("Reconnecting...", comment: "Status message")
+        case .offline:
+            banner.backgroundColor = .systemRed
+            label.text = NSLocalizedString("Offline", comment: "Status message")
+        case .authenticationIssue:
+            banner.backgroundColor = .systemRed
+            label.text = NSLocalizedString("Authentication Issue", comment: "Status message")
+        }
+
+        banner.addSubview(label)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: banner.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: banner.centerYAnchor)
+        ])
+
+        return banner
     }
 }
 

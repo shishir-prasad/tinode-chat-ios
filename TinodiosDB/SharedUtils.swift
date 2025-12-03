@@ -39,6 +39,11 @@ public class SharedUtils {
     static let kTokenKey = "co.tinode.token"
     static let kTokenExpiryKey = "co.tinode.token_expiry"
 
+    // Auto logout control flag.
+    // Set to false to disable automatic logout on authentication errors.
+    // Manual logout will still work through user interface.
+    public static let kEnableAutoLogout: Bool = false
+
     // Application metadata version.
     // Bump it up whenever you change the application metadata and
     // want to force the user to re-login when the user installs
@@ -147,14 +152,52 @@ public class SharedUtils {
 
     public static func getAuthToken() -> String? {
         guard SharedUtils.appMetaVersionUpToDate() else { return nil }
+
+        // Check keychain accessibility before attempting to read
+        guard isKeychainAccessible() else {
+            BaseDb.log.info("Keychain not accessible, cannot retrieve auth token")
+            return nil
+        }
+
         return SharedUtils.kAppKeychain.string(
             forKey: SharedUtils.kTokenKey, withAccessibility: .afterFirstUnlock)
     }
 
+    private static func isKeychainAccessible() -> Bool {
+        // Test keychain accessibility by attempting to read/write a test value
+        let testKey = "co.tinode.accessibility_test"
+        let testValue = "test_\(Date().timeIntervalSince1970)"
+
+        // Try to set a test value
+        guard SharedUtils.kAppKeychain.set(testValue, forKey: testKey, withAccessibility: .afterFirstUnlock) else {
+            BaseDb.log.debug("Keychain accessibility test failed - cannot write")
+            return false
+        }
+
+        // Try to read the test value
+        let retrievedValue = SharedUtils.kAppKeychain.string(forKey: testKey, withAccessibility: .afterFirstUnlock)
+
+        // Clean up test value
+        SharedUtils.kAppKeychain.removeObject(forKey: testKey)
+
+        let isAccessible = retrievedValue == testValue
+        if !isAccessible {
+            BaseDb.log.debug("Keychain accessibility test failed - read/write mismatch")
+        }
+
+        return isAccessible
+    }
+
     public static func getAuthTokenExpiryDate() -> Date? {
-         guard let expString = SharedUtils.kAppKeychain.string(
-             forKey: SharedUtils.kTokenExpiryKey, withAccessibility: .afterFirstUnlock) else { return nil }
-         return Formatter.rfc3339.date(from: expString)
+        // Check keychain accessibility before attempting to read
+        guard isKeychainAccessible() else {
+            BaseDb.log.info("Keychain not accessible, cannot retrieve auth token expiry date")
+            return nil
+        }
+
+        guard let expString = SharedUtils.kAppKeychain.string(
+            forKey: SharedUtils.kTokenExpiryKey, withAccessibility: .afterFirstUnlock) else { return nil }
+        return Formatter.rfc3339.date(from: expString)
     }
 
     public static func removeAuthToken() {
@@ -163,19 +206,66 @@ public class SharedUtils {
     }
 
     public static func saveAuthToken(for userName: String, token: String?, expires expiryDate: Date?) {
+        saveAuthToken(for: userName, token: token, expires: expiryDate, completion: nil)
+    }
+
+    public static func saveAuthToken(for userName: String, token: String?, expires expiryDate: Date?, completion: ((Bool) -> Void)?) {
+        var success = true
+
+        // Save username to user defaults
         SharedUtils.kAppDefaults.set(userName, forKey: SharedUtils.kTinodePrefLastLogin)
+
         if let token = token, !token.isEmpty {
+            // Save token to keychain with validation
             if !SharedUtils.kAppKeychain.set(token, forKey: SharedUtils.kTokenKey, withAccessibility: .afterFirstUnlock) {
-                BaseDb.log.error("Could not save auth token")
+                BaseDb.log.error("Could not save auth token to keychain")
+                success = false
+            } else {
+                // Retry validation with small delay to handle async keychain writes
+                // iOS keychain writes may not be immediately readable due to async persistence
+                var validationSuccess = false
+                for attempt in 1...3 {
+                    if let retrievedToken = SharedUtils.kAppKeychain.string(forKey: SharedUtils.kTokenKey, withAccessibility: .afterFirstUnlock),
+                       retrievedToken == token {
+                        validationSuccess = true
+                        BaseDb.log.debug("Auth token validation succeeded on attempt %d", attempt)
+                        break
+                    }
+                    // Wait briefly before retrying (10ms, 20ms, 30ms progression)
+                    if attempt < 3 {
+                        Thread.sleep(forTimeInterval: Double(attempt) * 0.01)
+                        BaseDb.log.debug("Auth token validation retry %d", attempt)
+                    }
+                }
+
+                if !validationSuccess {
+                    BaseDb.log.error("Auth token validation failed after 3 attempts")
+                    success = false
+                }
             }
+
+            // Save expiry date if provided
             if let expiryDate = expiryDate {
-                SharedUtils.kAppKeychain.set(
-                    Formatter.rfc3339.string(from: expiryDate),
-                    forKey: SharedUtils.kTokenExpiryKey,
-                    withAccessibility: .afterFirstUnlock)
+                let expiryString = Formatter.rfc3339.string(from: expiryDate)
+                if !SharedUtils.kAppKeychain.set(expiryString, forKey: SharedUtils.kTokenExpiryKey, withAccessibility: .afterFirstUnlock) {
+                    BaseDb.log.error("Could not save auth token expiry date")
+                    success = false
+                }
             } else {
                 SharedUtils.kAppKeychain.removeObject(forKey: SharedUtils.kTokenExpiryKey)
             }
+        }
+
+        // Force sync to ensure persistence
+        SharedUtils.kAppDefaults.synchronize()
+
+        // Call completion handler with result
+        completion?(success)
+
+        if success {
+            BaseDb.log.info("Auth token saved and validated successfully for user: %@", userName)
+        } else {
+            BaseDb.log.error("Failed to save or validate auth token for user: %@", userName)
         }
     }
 
@@ -235,16 +325,24 @@ public class SharedUtils {
             BaseDb.log.error("Connect&Login Sync - missing auth token")
             return false
         }
-        if let tokenExpires = SharedUtils.getAuthTokenExpiryDate(), tokenExpires < Date() {
-            // Token has expired.
-            // TODO: treat tokenExpires == nil as a reason to reject.
-            BaseDb.log.error("Connect&Login Sync - auth token expired")
-            return false
+        // NEW: More flexible token handling
+        if SharedUtils.kEnableAutoLogout {
+            if let tokenExpires = SharedUtils.getAuthTokenExpiryDate(), tokenExpires < Date() {
+                // Token has expired.
+                BaseDb.log.error("Connect&Login Sync - auth token expired")
+                return false
+            }
+        } else {
+            // When auto-logout is disabled, be more tolerant of token issues
+            if let tokenExpires = SharedUtils.getAuthTokenExpiryDate(), tokenExpires < Date() {
+                BaseDb.log.info("Connect&Login Sync - token expired but auto-logout disabled, attempting anyway")
+                // Continue with connection attempt - server might refresh the token
+            }
         }
         BaseDb.log.info("Connect&Login Sync - will attempt to login (user name: %@)", userName)
         var success = false
         do {
-            tinode.setAutoLoginWithToken(token: token)
+            tinode.setAutoLoginWithSSO(token: token)
             // Tinode.connect() will automatically log in.
             let msg = try tinode.connectDefault(inBackground: bkg)?.getResult()
             if let ctrl = msg?.ctrl {
@@ -258,26 +356,31 @@ public class SharedUtils {
                         SharedUtils.saveAuthToken(for: userName, token: tinode.authToken, expires: tinode.authTokenExpires)
                     }
                 case 401:
-                    BaseDb.log.info("Connect&Login Sync - attempt to subscribe to 'me' before login.")
+                    // NEW: Handle 401 more gracefully
+                    BaseDb.log.info("Connect&Login Sync - 401 unauthorized, may need token refresh")
+                    success = !SharedUtils.kEnableAutoLogout // Allow app to continue if auto-logout disabled
                 case 409:
                     BaseDb.log.info("Connect&Login Sync - already authenticated.")
                 case 500..<600:
                     BaseDb.log.error("Connect&Login Sync - server error on login: %d", ctrl.code)
+                    success = false
                 default:
                     success = false
                 }
             }
         } catch WebSocketError.network(let err) {
-            // No network connection.
             BaseDb.log.debug("Connect&Login Sync [network] - could not connect to Tinode: %@", err)
-            success = true
+            // NEW: Return true for network errors when auto-logout disabled - app can retry later
+            success = !SharedUtils.kEnableAutoLogout
         } catch {
             let err = error as NSError
             if err.code == NSURLErrorCannotConnectToHost {
                 BaseDb.log.debug("Connect&Login Sync [network] - could not connect to Tinode: %@", err)
-                success = true
+                success = !SharedUtils.kEnableAutoLogout
             } else {
                 BaseDb.log.error("Connect&Login Sync - failed to automatically login to Tinode: %@", error.localizedDescription)
+                // NEW: More tolerant error handling
+                success = !SharedUtils.kEnableAutoLogout
             }
         }
         return success
@@ -531,6 +634,122 @@ public class SharedUtils {
             }
         }
         task.resume()
+    }
+
+    // MARK: - Session Persistence Management
+
+    private static let kLastSuccessfulConnection = "lastSuccessfulConnection"
+    private static let kConnectionAttempts = "connectionAttempts"
+
+    public static func recordSuccessfulConnection() {
+        kAppDefaults.set(Date(), forKey: kLastSuccessfulConnection)
+        kAppDefaults.set(0, forKey: kConnectionAttempts) // Reset attempts
+        kAppDefaults.synchronize()
+    }
+
+    public static func recordFailedConnection() {
+        let attempts = kAppDefaults.integer(forKey: kConnectionAttempts) + 1
+        kAppDefaults.set(attempts, forKey: kConnectionAttempts)
+        kAppDefaults.synchronize()
+    }
+
+    public static func shouldAttemptAutoReconnection() -> Bool {
+        let attempts = kAppDefaults.integer(forKey: kConnectionAttempts)
+        let lastConnection = kAppDefaults.object(forKey: kLastSuccessfulConnection) as? Date
+
+        // If we had a successful connection in the last 24 hours and haven't failed too many times
+        if let lastConnection = lastConnection,
+           Date().timeIntervalSince(lastConnection) < 86400, // 24 hours
+           attempts < 5 {
+            return true
+        }
+
+        return false
+    }
+
+    // MARK: - Enhanced Token-Based Reconnection
+
+    public static func isTokenValid() -> Bool {
+        guard let token = getAuthToken(), !token.isEmpty else {
+            return false
+        }
+
+        // If auto-logout is disabled, always consider token valid for reconnection attempt
+        if !kEnableAutoLogout {
+            return true
+        }
+
+        // Check token expiry only when auto-logout is enabled
+        if let expiry = getAuthTokenExpiryDate() {
+            return expiry > Date()
+        }
+
+        // If no expiry date, assume token is still valid for reconnection attempt
+        return true
+    }
+
+    public static func attemptTokenBasedReconnection(using tinode: Tinode, completion: @escaping (Bool, String?) -> Void) {
+        guard let userName = getSavedLoginUserName(), !userName.isEmpty,
+              let token = getAuthToken(), !token.isEmpty else {
+            completion(false, "No saved credentials available")
+            return
+        }
+
+        BaseDb.log.info("Attempting token-based reconnection for user: %@", userName,token)
+
+        tinode.setAutoLoginWithToken(token: token)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let msg = try tinode.connectDefault(inBackground: false)?.getResult()
+                if let ctrl = msg?.ctrl {
+                    DispatchQueue.main.async {
+                        switch ctrl.code {
+                        case 0..<300:
+                            let myUid = ctrl.getStringParam(for: "user")
+                            BaseDb.log.info("Token-based reconnection successful for: %@", myUid ?? "unknown")
+
+                            // Update token if server provided a new one
+                            if let newAuthToken = tinode.authToken, newAuthToken != token {
+                                saveAuthToken(for: userName, token: newAuthToken, expires: tinode.authTokenExpires)
+                                BaseDb.log.info("Updated auth token after successful reconnection")
+                            }
+
+                            recordSuccessfulConnection()
+                            completion(true, nil)
+
+                        case 401, 403, 404:
+                            BaseDb.log.error("Token-based reconnection failed - unauthorized (code: %d)", ctrl.code)
+                            removeAuthToken()
+                            completion(false, "AUTH_ERROR")
+
+                        default:
+                            BaseDb.log.error("Token-based reconnection failed - server error: %d", ctrl.code)
+                            completion(false, "Connection failed with code: \(ctrl.code)")
+                        }
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        BaseDb.log.error("Token-based reconnection failed - no response from server")
+                        completion(false, "No response from server")
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    BaseDb.log.error("Token-based reconnection failed - connection error: %@", error.localizedDescription)
+
+                    // Check if it's an auth error
+                    if let tinodeError = error as? TinodeError,
+                       case .serverResponseError(let code, _, _) = tinodeError,
+                       (code == 401 || code == 403 || code == 404) {
+                        removeAuthToken()
+                        completion(false, "AUTH_ERROR")
+                    } else {
+                        completion(false, error.localizedDescription)
+                    }
+                }
+            }
+        }
     }
 }
 

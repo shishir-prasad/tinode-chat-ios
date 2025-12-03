@@ -91,7 +91,7 @@ class FormatNode: CustomStringConvertible {
         /// Size of the audio wave.
         static let kWaveSize = CGSize(width: 144, height: 32)
         /// URL and Button text color
-        static let kLinkColor = UIColor.link //(red: 0, green: 122/255, blue: 1, alpha: 1)
+        static let kLinkColor = UIColor.link
         static let kQuoteTextColorAdj = 0.7 // Adjustment to font alpha in quote to make it less prominent.
         static let kSecondaryColorAlpha = 0.6 // Adjustment to alpha for showing Play/Pause buttons.
 
@@ -343,7 +343,19 @@ class FormatNode: CustomStringConvertible {
             paragraph.firstLineHeadIndent = Constants.kAttachmentIconSize.width + baseFont.capHeight * 0.25
             paragraph.lineSpacing = 0
             paragraph.lineHeightMultiple = 0
-            second.addAttributes([NSAttributedString.Key.paragraphStyle: paragraph, NSAttributedString.Key.foregroundColor: Constants.kLinkColor
+
+            // Determine appropriate link color based on text color context
+            var linkColor = Constants.kLinkColor // Default system link color
+            if let textColor = fg {
+                // If text color is white or light, we're likely in an outgoing message
+                var white: CGFloat = 0
+                textColor.getWhite(&white, alpha: nil)
+                if white > 0.8 { // Text is very light/white
+                    linkColor = UIColor.white
+                }
+            }
+
+            second.addAttributes([NSAttributedString.Key.paragraphStyle: paragraph, NSAttributedString.Key.foregroundColor: linkColor
             ], range: NSRange(location: 0, length: second.length))
 
             var baseUrl = URLComponents(string: "tinode://\(tinode.hostName)")!
@@ -710,7 +722,19 @@ class FormatNode: CustomStringConvertible {
         case .button:
             // Change color of text from default to link color.
             var attrs = attributes
-            attrs[.foregroundColor] = Constants.kLinkColor
+
+            // Determine appropriate link color based on text color context
+            var linkColor = Constants.kLinkColor // Default system link color
+            if let textColor = attributes[.foregroundColor] as? UIColor {
+                // If text color is white or light, we're likely in an outgoing message
+                var white: CGFloat = 0
+                textColor.getWhite(&white, alpha: nil)
+                if white > 0.8 { // Text is very light/white
+                    linkColor = UIColor.white
+                }
+            }
+
+            attrs[.foregroundColor] = linkColor
             let entity = NSLocalizedString("button", comment: "Text written on button face when all else fails.")
             let faceText = composeBody(defaultText: entity, defaultAttrs: attrs, fontTraits: fontTraits, maxSize: size)
             return NSAttributedString(attachment: ButtonAttachment(face: faceText, data: URL(string: attachment.ref!)))

@@ -144,7 +144,7 @@ class ContactsSynchronizer {
             var lastSyncMarker = self.serverSyncMarker
             let tinode = Cache.tinode
             do {
-                tinode.setAutoLoginWithToken(token: token)
+                tinode.setAutoLoginWithSSO(token: token)
                 _ = try tinode.connectDefault(inBackground: true)?.getResult()
 
                 _ = try tinode.loginToken(token: token, creds: nil).getResult()

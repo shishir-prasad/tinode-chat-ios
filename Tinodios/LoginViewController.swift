@@ -22,13 +22,16 @@ struct PreLoginResponse: Codable {
 }
 
 struct PreLoginData: Codable {
-    let success: Bool
-    let message: String
-    let requireOtp: Bool
+    let success: Bool?
+    let message: String?
+    let requireOtp: Bool?
+    let user: UserData?
+    let token: String?
 
     enum CodingKeys: String, CodingKey {
         case success, message
         case requireOtp = "require_otp"
+        case user, token
     }
 }
 
@@ -39,13 +42,30 @@ struct OTPVerificationResponse: Codable {
 
 struct LoginResponse: Codable {
     let success: Bool
-    let user: UserData?
+    let user: UserInfo?
     let token: String?
     let message: String?
 }
 
 struct UserData: Codable {
-    let User: UserInfo
+    let User: UserInfo?
+
+    // Custom initializer to handle different API response formats
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Try to decode the User object directly
+        if let userInfo = try? container.decode(UserInfo.self, forKey: .User) {
+            self.User = userInfo
+        } else {
+            // If User key is missing or invalid, set to nil
+            self.User = nil
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case User
+    }
 }
 
 struct UserInfo: Codable {
@@ -180,8 +200,97 @@ class LoginViewController: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+
+        // Check current authentication state and redirect if already authenticated
+        validateAuthenticationState()
+
         self.navigationController?.navigationBar.isHidden = true
         self.setInterfaceColors()
+    }
+
+    private func validateAuthenticationState() {
+        // Check if we have a valid token and are already authenticated
+        if let token = SharedUtils.getAuthToken(), !token.isEmpty {
+            // Check if the Tinode connection is already authenticated
+            let tinode = Cache.tinode
+            if tinode.isConnectionAuthenticated {
+                Cache.log.info("LoginVC - User already authenticated, redirecting to chat list")
+                DispatchQueue.main.async {
+                    UiUtils.routeToChatListVC()
+                }
+                return
+            }
+
+            // Check if token is expired (only if auto logout is enabled)
+            if SharedUtils.kEnableAutoLogout {
+                if let tokenExpiry = SharedUtils.getAuthTokenExpiryDate(), tokenExpiry < Date() {
+                    Cache.log.info("LoginVC - Auth token expired, clearing and allowing re-login")
+                    SharedUtils.removeAuthToken()
+                    return
+                }
+            } else {
+                Cache.log.info("LoginVC - Token expiry check disabled, using existing token")
+            }
+
+            // Token exists and not expired, attempt background re-authentication
+            Cache.log.info("LoginVC - Valid token found, attempting background authentication")
+            attemptBackgroundAuthentication(with: token)
+        }
+    }
+
+    private func attemptBackgroundAuthentication(with token: String) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let tinode = Cache.tinode
+            do {
+                tinode.setAutoLoginWithToken(token: token)
+                let success = try tinode.connectDefault(inBackground: true)?.getResult()
+
+                if let ctrl = success?.ctrl, ctrl.code < 300 {
+                    Cache.log.info("LoginVC - Background authentication successful")
+                    DispatchQueue.main.async {
+                        UiUtils.routeToChatListVC()
+                    }
+                } else {
+                    Cache.log.info("LoginVC - Background authentication failed, token may be invalid")
+                    DispatchQueue.main.async {
+                        if SharedUtils.kEnableAutoLogout {
+                            SharedUtils.removeAuthToken()
+                            // Stay on login screen for fresh authentication
+                        } else {
+                            Cache.log.info("LoginVC - Background authentication failed, keeping token for retry")
+                            // Stay on login screen but keep the token
+                        }
+                    }
+                }
+            } catch {
+                Cache.log.error("LoginVC - Background authentication error: %@", error.localizedDescription)
+                DispatchQueue.main.async {
+                    // Don't clear token for network errors, user can try again
+                    if let tinodeError = error as? TinodeError {
+                        switch tinodeError {
+                        case .invalidState(_):
+                            if SharedUtils.kEnableAutoLogout {
+                                // Clear invalid token
+                                SharedUtils.removeAuthToken()
+                            } else {
+                                Cache.log.info("Invalid state error - keeping token for retry")
+                            }
+                        case .serverResponseError(let code, _, _):
+                            if code >= 400 && SharedUtils.kEnableAutoLogout {
+                                // Clear invalid token for client/server errors
+                                SharedUtils.removeAuthToken()
+                            } else {
+                                Cache.log.info("Server error code %d - keeping token for retry", code)
+                            }
+                            // Keep token for 5xx server errors (temporary)
+                        default:
+                            // Keep token for network or temporary errors
+                            break
+                        }
+                    }
+                }
+            }
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -298,11 +407,50 @@ class LoginViewController: UIViewController {
                 return
             }
 
+            // Debug: Log raw response for troubleshooting
+            if let jsonString = String(data: data, encoding: .utf8) {
+                Cache.log.info("PreLogin API Raw Response: %@", jsonString)
+            }
+
+            // Log HTTP response status
+            if let httpResponse = response as? HTTPURLResponse {
+                Cache.log.info("PreLogin API Status Code: %d", httpResponse.statusCode)
+            }
+
             do {
                 let preLoginResponse = try JSONDecoder().decode(PreLoginResponse.self, from: data)
+                Cache.log.info("PreLogin API Decoded Successfully")
                 completion(.success(preLoginResponse))
             } catch {
-                completion(.failure(error))
+                Cache.log.error("PreLogin API JSON Decode Error: %@", error.localizedDescription)
+
+                // Log the exact decoding error details
+                if let decodingError = error as? DecodingError {
+                    switch decodingError {
+                    case .dataCorrupted(let context):
+                        Cache.log.error("Data corrupted: %@", context.debugDescription)
+                    case .keyNotFound(let key, let context):
+                        Cache.log.error("Key '%@' not found: %@", key.stringValue, context.debugDescription)
+                    case .typeMismatch(let type, let context):
+                        Cache.log.error("Type mismatch for type %@: %@", String(describing: type), context.debugDescription)
+                    case .valueNotFound(let type, let context):
+                        Cache.log.error("Value not found for type %@: %@", String(describing: type), context.debugDescription)
+                    @unknown default:
+                        Cache.log.error("Unknown decoding error: %@", error.localizedDescription)
+                    }
+                }
+
+                // Create a more descriptive error for JSON parsing failures
+                let detailedError = NSError(
+                    domain: "PreLoginJSONError",
+                    code: -2,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Failed to parse server response: \(error.localizedDescription)",
+                        NSLocalizedFailureReasonErrorKey: "The server response format is invalid or missing required fields",
+                        NSLocalizedRecoverySuggestionErrorKey: "Please try again or contact support if the problem persists"
+                    ]
+                )
+                completion(.failure(detailedError))
             }
         }.resume()
     }
@@ -392,13 +540,17 @@ class LoginViewController: UIViewController {
         do {
             try tinode.connectDefault(inBackground: false)?
                 .thenApply({ _ in
-                    return tinode.loginSSO(token: token)
+                    // Try token authentication first, fallback to SSO if needed
+                    Cache.log.info("LoginVC - Attempting token authentication with: %@", String(token.prefix(10)) + "...")
+                    return tinode.loginToken(token: token, creds: nil)
                 })
                 .then(
                     onSuccess: { [weak self] pkt in
-                        Cache.log.info("LoginVC - SSO login successful for %@", tinode.myUid!)
-                        if let token = tinode.authToken {
-                            tinode.setAutoLoginWithToken(token: token)
+                        Cache.log.info("LoginVC - Token login successful for %@", tinode.myUid!)
+                        if let authToken = tinode.authToken {
+                            if let username = SharedUtils.getSavedLoginUserName() {
+                                SharedUtils.saveAuthToken(for: username, token: authToken, expires: tinode.authTokenExpires)
+                            }
                         }
                         if let ctrl = pkt?.ctrl, ctrl.code >= 300, ctrl.text.contains("validate credentials") {
                             DispatchQueue.main.async { [weak self] in
@@ -409,21 +561,39 @@ class LoginViewController: UIViewController {
                         }
                         UiUtils.routeToChatListVC()
                         return nil
-                    }, onFailure: { err in
-                        Cache.log.error("LoginVC - SSO login failed: %@", err.localizedDescription)
-                        var toastMsg: String
-                        if let tinodeErr = err as? TinodeError {
-                            toastMsg = "Tinode: \(tinodeErr.description)"
-                        } else {
-                            let (hostName, _) = Tinode.getConnectionParams()
-                            toastMsg = String(format: NSLocalizedString("Couldn't connect to server at %@: %@", comment: "Error message"), hostName, err.localizedDescription)
-                        }
-                        DispatchQueue.main.async {
-                            UiUtils.showToast(message: toastMsg)
-                        }
-                        Cache.invalidate()
-                        return nil
-                    }).thenFinally { [weak self] in
+                    }, onFailure: { [weak self] err in
+                        Cache.log.error("LoginVC - Token login failed, trying SSO: %@", err.localizedDescription)
+
+                        // Fallback to SSO authentication
+                        guard let self = self else { return nil }
+                        return tinode.loginSSO(token: token).then(
+                            onSuccess: { pkt in
+                                Cache.log.info("LoginVC - SSO login successful for %@", tinode.myUid!)
+                                if let authToken = tinode.authToken {
+                                    if let username = SharedUtils.getSavedLoginUserName() {
+                                        SharedUtils.saveAuthToken(for: username, token: authToken, expires: tinode.authTokenExpires)
+                                    }
+                                }
+                                UiUtils.routeToChatListVC()
+                                return nil
+                            },
+                            onFailure: { ssoErr in
+                                Cache.log.error("LoginVC - Both token and SSO login failed: %@", ssoErr.localizedDescription)
+                                let errorClassification = self.classifyError(ssoErr)
+
+                                DispatchQueue.main.async {
+                                    UiUtils.showToast(message: errorClassification.message)
+                                }
+
+                                // Only invalidate cache for non-recoverable errors
+                                if !errorClassification.isRecoverable {
+                                    Cache.invalidate()
+                                }
+                                return nil
+                            }
+                        )
+                    })
+                    .thenFinally { [weak self] in
                         guard let loginVC = self else { return }
                         DispatchQueue.main.async {
                             UiUtils.toggleProgressOverlay(in: loginVC, visible: false)
@@ -451,24 +621,44 @@ class LoginViewController: UIViewController {
         UiUtils.toggleProgressOverlay(in: self, visible: true, title: NSLocalizedString("Authenticating...", comment: "Authentication progress text"))
 
         // Step 1: Call preLogin API
+        print("prelogin data \(userName) \(password)")
         preLogin(username: userName, password: password) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 switch result {
                 case .success(let preLoginResponse):
-                    if preLoginResponse.data.success {
-                        if preLoginResponse.data.requireOtp {
+                    Cache.log.info("PreLogin response received: %@", String(describing: preLoginResponse))
+
+                    // Validate required fields with nil-coalescing defaults
+                    guard let success = preLoginResponse.data.success else {
+                        Cache.log.error("PreLogin response missing 'success' field")
+                        UiUtils.toggleProgressOverlay(in: self, visible: false)
+                        UiUtils.showToast(message: "Invalid server response: missing success status")
+                        return
+                    }
+
+                    if success {
+                        let requireOtp = preLoginResponse.data.requireOtp ?? false
+
+                        if requireOtp {
                             // Show success message first
-                            UiUtils.showToast(message: "OTP sent to your email. Please check your inbox.")
+                            UiUtils.showToast(message: "OTP sent to your whatsapp. Please check your inbox.")
                             // OTP is required, show OTP verification
                             self.showOTPVerification(username: userName, password: password)
                         } else {
-                            // No OTP required, proceed with direct login
-                            self.performLogin(username: userName, password: password)
+                            // No OTP required, check if token is provided in preLogin response
+                            if let token = preLoginResponse.data.token, !token.isEmpty {
+                                // Direct authentication with token from preLogin response
+                                self.performDirectSSO(username: userName, token: token)
+                            } else {
+                                // Fallback to separate login call
+                                self.performLogin(username: userName, password: password)
+                            }
                         }
                     } else {
                         UiUtils.toggleProgressOverlay(in: self, visible: false)
-                        UiUtils.showToast(message: preLoginResponse.data.message)
+                        let message = preLoginResponse.data.message ?? "Login failed. Please try again."
+                        UiUtils.showToast(message: message)
                     }
                 case .failure(let error):
                     UiUtils.toggleProgressOverlay(in: self, visible: false)
@@ -487,7 +677,7 @@ class LoginViewController: UIViewController {
             guard let self = self else { return }
 
             let alert = UIAlertController(title: "OTP Verification",
-                                        message: "An OTP has been sent to your email. Please enter it below to continue.",
+                                        message: "An OTP has been sent to your whatsapp. Please enter it below to continue.",
                                         preferredStyle: .alert)
 
             alert.addTextField { textField in
@@ -549,9 +739,18 @@ class LoginViewController: UIViewController {
                 switch result {
                 case .success(let loginResponse):
                     if loginResponse.success, let token = loginResponse.token {
-                        // Login successful, save user info and proceed with SSO
-                        SharedUtils.saveAuthToken(for: username, token: token, expires: nil)
-                        self.loginWithSSO(token: token)
+                        // Login successful, save user info with validation and proceed with SSO
+                        SharedUtils.saveAuthToken(for: username, token: token, expires: nil) { [weak self] success in
+                            guard let self = self else { return }
+                            if success {
+                                Cache.log.info("LoginVC - Token saved successfully, proceeding with SSO login")
+                                self.loginWithSSO(token: token)
+                            } else {
+                                Cache.log.error("LoginVC - Failed to save auth token, aborting login")
+                                UiUtils.toggleProgressOverlay(in: self, visible: false)
+                                UiUtils.showToast(message: "Failed to save authentication data. Please try again.")
+                            }
+                        }
                     } else {
                         UiUtils.toggleProgressOverlay(in: self, visible: false)
                         UiUtils.showToast(message: loginResponse.message ?? "Login failed")
@@ -561,6 +760,141 @@ class LoginViewController: UIViewController {
                     UiUtils.showToast(message: "Login failed: \(error.localizedDescription)")
                 }
             }
+        }
+    }
+
+    private func performDirectSSO(username: String, token: String) {
+        // Direct SSO authentication using token from preLogin response
+        SharedUtils.saveAuthToken(for: username, token: token, expires: nil) { [weak self] success in
+            guard let self = self else { return }
+            if success {
+                Cache.log.info("LoginVC - Token from preLogin saved successfully, proceeding with SSO login")
+                self.loginWithSSO(token: token)
+            } else {
+                Cache.log.error("LoginVC - Failed to save auth token from preLogin, aborting login")
+                UiUtils.toggleProgressOverlay(in: self, visible: false)
+                UiUtils.showToast(message: "Failed to save authentication data. Please try again.")
+            }
+        }
+    }
+
+    // MARK: - Error Classification
+
+    private struct ErrorClassification {
+        let message: String
+        let isRecoverable: Bool
+        let shouldClearToken: Bool
+    }
+
+    private func classifyError(_ error: Error) -> ErrorClassification {
+        Cache.log.info("LoginVC - Classifying error: %@", error.localizedDescription)
+
+        if let tinodeError = error as? TinodeError {
+            switch tinodeError {
+            case .serverResponseError(let code, let text, _):
+                return classifyServerError(code: code, text: text)
+            case .invalidState(let reason):
+                return ErrorClassification(
+                    message: "Authentication state error: \(reason)",
+                    isRecoverable: false,
+                    shouldClearToken: true
+                )
+            case .notConnected(_):
+                return ErrorClassification(
+                    message: "Connection lost. Please check your network and try again.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            default:
+                return ErrorClassification(
+                    message: "Authentication failed: \(tinodeError.description)",
+                    isRecoverable: false,
+                    shouldClearToken: true
+                )
+            }
+        }
+
+        if let nsError = error as NSError? {
+            switch nsError.code {
+            case NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost:
+                return ErrorClassification(
+                    message: "No network connection. Please check your internet and try again.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            case NSURLErrorCannotConnectToHost, NSURLErrorTimedOut:
+                let (hostName, _) = Tinode.getConnectionParams()
+                return ErrorClassification(
+                    message: "Cannot connect to server at \(hostName). Please try again.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            case NSURLErrorServerCertificateUntrusted, NSURLErrorServerCertificateHasUnknownRoot:
+                return ErrorClassification(
+                    message: "Server certificate validation failed. Please check your connection.",
+                    isRecoverable: false,
+                    shouldClearToken: false
+                )
+            default:
+                return ErrorClassification(
+                    message: "Network error: \(error.localizedDescription)",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            }
+        }
+
+        return ErrorClassification(
+            message: "Login failed: \(error.localizedDescription)",
+            isRecoverable: false,
+            shouldClearToken: true
+        )
+    }
+
+    private func classifyServerError(code: Int, text: String) -> ErrorClassification {
+        switch code {
+        case 400:
+            return ErrorClassification(
+                message: "Invalid request. Please check your credentials and try again.",
+                isRecoverable: true,
+                shouldClearToken: false
+            )
+        case 401:
+            return ErrorClassification(
+                message: "Authentication failed. Please check your credentials.",
+                isRecoverable: true,
+                shouldClearToken: true
+            )
+        case 403:
+            return ErrorClassification(
+                message: "Access forbidden. Your account may be suspended.",
+                isRecoverable: false,
+                shouldClearToken: true
+            )
+        case 404:
+            return ErrorClassification(
+                message: "User not found. Please check your credentials.",
+                isRecoverable: true,
+                shouldClearToken: true
+            )
+        case 429:
+            return ErrorClassification(
+                message: "Too many login attempts. Please wait and try again.",
+                isRecoverable: true,
+                shouldClearToken: false
+            )
+        case 500...599:
+            return ErrorClassification(
+                message: "Server error. Please try again later.",
+                isRecoverable: true,
+                shouldClearToken: false
+            )
+        default:
+            return ErrorClassification(
+                message: "Server returned error \(code): \(text)",
+                isRecoverable: code < 500,
+                shouldClearToken: code < 500
+            )
         }
     }
 }

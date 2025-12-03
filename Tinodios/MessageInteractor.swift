@@ -254,6 +254,25 @@ class MessageInteractor: DefaultComTopic.Listener, MessageBusinessLogic, Message
                     switch err {
                     case TinodeError.notConnected(_):
                         tinode.reconnectNow(interactively: false, reset: false)
+                    case TinodeError.invalidState(let reason):
+                        // Check if this is an authentication-related error
+                        if reason.lowercased().contains("authenticated") {
+                            Cache.log.info("MessageInteractor - Authentication error detected in subscribe: %@", reason)
+                            DispatchQueue.main.async {
+                                if SharedUtils.kEnableAutoLogout {
+                                    UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
+                                    UiUtils.logoutAndRouteToLoginVC()
+                                } else {
+                                    UiUtils.showToast(message: NSLocalizedString("Authentication error. Please check connection and try again.", comment: "Toast notification"))
+                                    // Attempt background reconnection
+                                    DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 2.0) {
+                                        Cache.tinode.reconnectNow(interactively: false, reset: false)
+                                    }
+                                }
+                            }
+                        } else {
+                            self?.presenter?.applyTopicPermissions(withError: err)
+                        }
                     default:
                         self?.presenter?.applyTopicPermissions(withError: err)
                     }
@@ -335,6 +354,48 @@ class MessageInteractor: DefaultComTopic.Listener, MessageBusinessLogic, Message
         defer {
             loadMessagesFromCache()
         }
+
+        // Enhanced: Check connection status before attempting to send
+        if !Cache.tinode.isConnected {
+            Cache.log.info("Not connected - attempting token-based reconnection before sending message")
+
+            // Show reconnecting status
+            DispatchQueue.main.async {
+                UiUtils.showConnectionStatusBanner(status: .reconnecting)
+            }
+
+            // Attempt reconnection before sending
+            SharedUtils.attemptTokenBasedReconnection(using: Cache.tinode) { [weak self] success, errorMessage in
+                if success {
+                    Cache.log.info("Reconnection successful - now sending message")
+                    DispatchQueue.main.async {
+                        UiUtils.showConnectionStatusBanner(status: .connected)
+                        // Retry the message send after successful reconnection
+                        self?.performMessageSend(content: content)
+                    }
+                } else {
+                    Cache.log.error("Reconnection failed before sending message: %@", errorMessage ?? "Unknown error")
+                    DispatchQueue.main.async {
+                        if let error = errorMessage, error.contains("Token expired") {
+                            UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
+                            if SharedUtils.kEnableAutoLogout {
+                                UiUtils.logoutAndRouteToLoginVC()
+                            }
+                        } else {
+                            UiUtils.showToast(message: NSLocalizedString("Connection failed. Please try again.", comment: "Toast notification"))
+                        }
+                    }
+                }
+            }
+            return
+        }
+
+        // If we're already connected, send the message directly
+        performMessageSend(content: content)
+    }
+
+    private func performMessageSend(content: Drafty) {
+        guard let topic = self.topic else { return }
         var message = content
         var head: [String: JSONValue]? = nil
         var editedSeq = 0
@@ -363,10 +424,32 @@ class MessageInteractor: DefaultComTopic.Listener, MessageBusinessLogic, Message
             onFailure: { err in
                 Cache.log.error("sendMessage error: %@", err.localizedDescription)
                 if let e = err as? TinodeError {
-                    if case .notConnected(_) = e {
+                    switch e {
+                    case .notConnected(_):
                         DispatchQueue.main.async { UiUtils.showToast(message: NSLocalizedString("You are offline.", comment: "Toast notification")) }
                         Cache.tinode.reconnectNow(interactively: false, reset: false)
                         return nil
+                    case .invalidState(let reason):
+                        // Check if this is an authentication-related error
+                        if reason.lowercased().contains("authenticated") {
+                            Cache.log.info("MessageInteractor - Authentication error detected in sendMessage: %@", reason)
+                            DispatchQueue.main.async {
+                                if SharedUtils.kEnableAutoLogout {
+                                    UiUtils.showToast(message: NSLocalizedString("Authentication expired. Please login again.", comment: "Toast notification"))
+                                    UiUtils.logoutAndRouteToLoginVC()
+                                } else {
+                                    UiUtils.showToast(message: NSLocalizedString("Message sending failed. Please try again.", comment: "Toast notification"))
+                                    // Attempt background reconnection
+                                    DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 2.0) {
+                                        Cache.tinode.reconnectNow(interactively: false, reset: false)
+                                    }
+                                }
+                            }
+                            return nil
+                        }
+                        break
+                    default:
+                        break
                     }
                 }
                 DispatchQueue.main.async {

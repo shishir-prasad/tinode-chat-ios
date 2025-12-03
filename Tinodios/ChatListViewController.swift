@@ -19,6 +19,7 @@ protocol ChatListDisplayLogic: AnyObject {
 class ChatListViewController: UITableViewController, ChatListDisplayLogic {
 
     private static let kFooterHeight: CGFloat = 30
+    private static let kPoweredByFooterHeight: CGFloat = 24
 
     @IBOutlet var chatListTableView: UITableView!
 
@@ -32,6 +33,8 @@ class ChatListViewController: UITableViewController, ChatListDisplayLogic {
     var router: ChatListRoutingLogic?
     // Archived chats footer
     var archivedChatsFooter: UIView?
+    // Powered by footer
+    var poweredByFooter: UIView?
 
     private func setup() {
         let viewController = self
@@ -57,19 +60,117 @@ class ChatListViewController: UITableViewController, ChatListDisplayLogic {
         button.titleLabel?.font = button.titleLabel?.font.withSize(15)
         button.addTarget(self, action: #selector(navigateToArchive), for: .touchUpInside)
         archivedChatsFooter!.addSubview(button)
-        tableView.tableFooterView = archivedChatsFooter
+
+        // Create powered by footer
+        createPoweredByFooter()
+
+        // Set up combined footer view
+        setupCombinedFooter()
         // Customize the title if needed.
         if let serviceName = SharedUtils.serviceName {
             self.title = serviceName
         }
     }
 
+    private func createPoweredByFooter() {
+        // Only show powered by footer if branding is configured
+        guard SharedUtils.appId != nil else { return }
+
+        poweredByFooter = UIView(frame: CGRect(x: 0, y: 0, width: tableView.frame.width, height: ChatListViewController.kPoweredByFooterHeight))
+        poweredByFooter!.backgroundColor = tableView.backgroundColor
+
+        // Create stack view similar to login screen
+        let stackView = UIStackView()
+        stackView.axis = .horizontal
+        stackView.spacing = 8
+        stackView.alignment = .center
+        stackView.distribution = .fill
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+
+        // Create logo image view
+        let logoImageView = UIImageView()
+        logoImageView.contentMode = .scaleAspectFit
+        logoImageView.clipsToBounds = true
+        logoImageView.translatesAutoresizingMaskIntoConstraints = false
+
+        // Use the same logo as login screen
+        if let logo = UIImage(named: "logo-ios") {
+            logoImageView.image = logo
+        } else if let logo = SharedUtils.smallIcon {
+            logoImageView.image = logo
+        }
+
+        // Create label
+        let label = UILabel()
+        label.text = "Powered By CloudQix"
+        label.textColor = UIColor.darkGray
+        label.font = UIFont.systemFont(ofSize: 14)
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        // Add subviews to stack
+        stackView.addArrangedSubview(logoImageView)
+        stackView.addArrangedSubview(label)
+
+        poweredByFooter!.addSubview(stackView)
+
+        // Set constraints
+        NSLayoutConstraint.activate([
+            // Logo size constraints
+            logoImageView.widthAnchor.constraint(equalToConstant: 24),
+            logoImageView.heightAnchor.constraint(equalToConstant: 24),
+
+            // Stack view constraints
+            stackView.centerXAnchor.constraint(equalTo: poweredByFooter!.centerXAnchor),
+            stackView.centerYAnchor.constraint(equalTo: poweredByFooter!.centerYAnchor),
+            stackView.heightAnchor.constraint(equalToConstant: ChatListViewController.kPoweredByFooterHeight)
+        ])
+    }
+
+    private func setupCombinedFooter() {
+        let shouldShowPoweredBy = SharedUtils.appId != nil
+        let shouldShowArchived = numArchivedTopics > 0
+
+        if shouldShowPoweredBy && shouldShowArchived {
+            // Create combined footer with both powered by and archived chats
+            let totalHeight = ChatListViewController.kPoweredByFooterHeight + ChatListViewController.kFooterHeight + 10 // 10pt spacing
+            let combinedFooter = UIView(frame: CGRect(x: 0, y: 0, width: tableView.frame.width, height: totalHeight))
+            combinedFooter.backgroundColor = tableView.backgroundColor
+
+            // Add powered by footer at the top
+            if let poweredBy = poweredByFooter {
+                poweredBy.frame = CGRect(x: 0, y: 0, width: tableView.frame.width, height: ChatListViewController.kPoweredByFooterHeight)
+                combinedFooter.addSubview(poweredBy)
+            }
+
+            // Add archived footer below with spacing
+            if let archived = archivedChatsFooter {
+                archived.frame = CGRect(x: 0, y: ChatListViewController.kPoweredByFooterHeight + 10, width: tableView.frame.width, height: ChatListViewController.kFooterHeight)
+                combinedFooter.addSubview(archived)
+            }
+
+            tableView.tableFooterView = combinedFooter
+        } else if shouldShowPoweredBy {
+            // Show only powered by footer
+            tableView.tableFooterView = poweredByFooter
+        } else if shouldShowArchived {
+            // Show only archived footer
+            tableView.tableFooterView = archivedChatsFooter
+        } else {
+            // No footer
+            tableView.tableFooterView = nil
+        }
+    }
+
     private func toggleFooter(visible: Bool) {
-        let count = numArchivedTopics > 9 ? "9+" : String(numArchivedTopics)
-        let button = tableView.tableFooterView!.subviews[0] as! UIButton
-        button.setTitle(String(format: NSLocalizedString("Archived Chats (%@)", comment: "Button to open chat archive"), count), for: .normal)
-        archivedChatsFooter!.isHidden = !visible
-        tableView.tableFooterView = archivedChatsFooter
+        if visible {
+            let count = numArchivedTopics > 9 ? "9+" : String(numArchivedTopics)
+            if let button = archivedChatsFooter?.subviews.first as? UIButton {
+                button.setTitle(String(format: NSLocalizedString("Archived Chats (%@)", comment: "Button to open chat archive"), count), for: .normal)
+            }
+        }
+
+        // Recreate the combined footer to reflect the archived chats visibility
+        setupCombinedFooter()
     }
 
     override func viewDidLoad() {
@@ -124,7 +225,12 @@ class ChatListViewController: UITableViewController, ChatListDisplayLogic {
     // }
 
     func displayLoginView() {
-        UiUtils.logoutAndRouteToLoginVC()
+        if SharedUtils.kEnableAutoLogout {
+            UiUtils.logoutAndRouteToLoginVC()
+        } else {
+            // Show authentication error with options instead of forced logout
+            UiUtils.showAuthenticationErrorWithOptions()
+        }
     }
 
     func displayChats(_ topics: [DefaultComTopic], archivedTopics: [DefaultComTopic]?) {

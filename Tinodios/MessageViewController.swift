@@ -67,16 +67,16 @@ class MessageViewController: UIViewController {
         static let kProgressBarRightPadding: CGFloat = 25
 
         // Light/dark gray color: outgoing messages
-        static let kOutgoingBubbleColorLight = UIColor(red: 244/255, green: 244/255, blue: 244/255, alpha: 1)
-        static let kOutgoingBubbleColorDark = UIColor(red: 51/255, green: 51/255, blue: 51/255, alpha: 1)
+        static let kOutgoingBubbleColorLight = UIColor(red: 37/255, green: 99/255, blue: 235/255, alpha: 1)
+        static let kOutgoingBubbleColorDark = UIColor(red: 37/255, green: 99/255, blue: 235/255, alpha: 1)
         // And corresponding text color
-        static let kOutgoingTextColorLight = UIColor.darkText
+        static let kOutgoingTextColorLight = UIColor.white
         static let kOutgoingTextColorDark = UIColor.lightText
         // Bright/dark green color
-        static let kIncomingBubbleColorLight = UIColor(red: 69/255, green: 193/255, blue: 89/255, alpha: 1)
-        static let kIncomingBubbleColorDark = UIColor(red: 40/255, green: 120/255, blue: 60/255, alpha: 1)
+        static let kIncomingBubbleColorLight = UIColor(red: 244/255, green: 244/255, blue: 244/255, alpha: 1)
+        static let kIncomingBubbleColorDark = UIColor(red: 244/255, green: 244/255, blue: 244/255, alpha: 1)
         // And corresponding font color
-        static let kIncomingTextColorLight = UIColor.white
+        static let kIncomingTextColorLight = UIColor.darkText
         static let kIncomingTextColorDark = UIColor.lightText
         // Meta-messages, such as "Content deleted".
         static let kDeletedMessageBubbleColorLight = UIColor(fromHexCode: 0xffe3f2fd)
@@ -747,13 +747,20 @@ extension MessageViewController: UICollectionViewDataSource {
             let text = NSMutableAttributedString(attributedString: attributedText)
             text.append(NSAttributedString(string: carveout, attributes: [.font: Constants.kContentFont]))
             cell.content.attributedText = text
+
+            // Configure link text attributes to override system link colors
+            let linkColor = isFromCurrentSender(message: message) && !message.isDeleted ? UIColor.white : UIColor.link
+            cell.content.linkTextAttributes = [
+                NSAttributedString.Key.foregroundColor: linkColor,
+                NSAttributedString.Key.underlineStyle: NSUnderlineStyle.single.rawValue
+            ]
         }
 
         if let (image, tint) = deliveryMarker(for: message) {
             cell.deliveryMarker.image = image
             cell.deliveryMarker.tintColor = tint
         }
-        let markerTextColor = isFromCurrentSender(message: message) ? UIColor.gray : UIColor.lightText
+        let markerTextColor = isFromCurrentSender(message: message) ?  UIColor.white:UIColor.gray 
         if let ts = message.ts {
             cell.timestampLabel.text = RelativeDateFormatter.shared.timeOnly(from: ts)
             cell.timestampLabel.textColor = markerTextColor

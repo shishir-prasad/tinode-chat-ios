@@ -11,12 +11,12 @@ HOST_NAME = fochat-dev.saleswarp.com
 USE_TLS = YES
 
 // App Settings
-APP_NAME = QixSecure BCP
+APP_NAME = BrightSide
 
-SERVICE_NAME= QixSecure
+SERVICE_NAME= BrightSide
 
 // Branding Configuration
-SERVICE_NAME = QixSecure BCP
+SERVICE_NAME = BrightSide
 TOS_URL = qixsecure.com/terms
 PRIVACY_URL = qixsecure.com/privacy
 API_HOST = fochat-dev.saleswarp.com

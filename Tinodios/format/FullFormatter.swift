@@ -48,6 +48,7 @@ class FullFormatter: AbstractFormatter {
     override func handleLink(content nodes: [FormatNode], using data: [String: JSONValue]?) -> FormatNode {
         let node = FormatNode(nodes)
         if let urlString = data?["url"]?.asString(), let url = NSURL(string: urlString), url.scheme?.lowercased() == "https" || url.scheme?.lowercased() == "http" {
+            // Standard link formatting - linkTextAttributes in MessageViewController overrides the color
             node.style(cstyle: [NSAttributedString.Key.link: url])
         }
         return node

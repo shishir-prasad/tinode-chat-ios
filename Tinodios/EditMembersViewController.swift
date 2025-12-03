@@ -57,7 +57,7 @@ class EditMembersViewController: UIViewController, UITableViewDataSource {
         }
 
         var presentIds = Set<String>()
-        contacts = contactsManager.fetchContacts()
+        contacts = contactsManager.fetchContacts() ?? []
         for i in 0..<contacts.count {
             let c = contacts[i]
             if let uid = c.uniqueId, userSelected(with: uid) {

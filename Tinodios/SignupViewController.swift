@@ -147,7 +147,7 @@ class SignupViewController: UITableViewController {
                             }
                         } else {
                             if let token = Cache.tinode.authToken {
-                                Cache.tinode.setAutoLoginWithToken(token: token)
+                                Cache.tinode.setAutoLoginWithSSO(token: token)
                             }
                             UiUtils.routeToChatListVC()
                         }
