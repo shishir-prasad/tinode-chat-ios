@@ -287,23 +287,69 @@ extension ChatListViewController {
     }
 
     override func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        let topic = self.topics[indexPath.row]
+        var actions: [UIContextualAction] = []
+
         // Delete item at indexPath
         let delete = UIContextualAction(style: .destructive, title: NSLocalizedString("Delete", comment: "Swipe action"), handler: { _,_,_ in
-            let topic = self.topics[indexPath.row]
             self.interactor?.deleteTopic(topic.name)
         })
+        actions.append(delete)
+
+        // Archive action
         let archive = UIContextualAction(style: .normal, title: NSLocalizedString("Archive", comment: "Swipe action"), handler: { _,_,_ in
-            let topic = self.topics[indexPath.row]
             self.interactor?.changeArchivedStatus(
                 forTopic: topic.name, archived: !topic.isArchived)
         })
+        actions.append(archive)
 
-        return UISwipeActionsConfiguration(actions: [delete, archive])
+        // Pin/Unpin action
+        let pinTitle = topic.isPinned ? NSLocalizedString("Unpin", comment: "Swipe action") : NSLocalizedString("Pin", comment: "Swipe action")
+        let pin = UIContextualAction(style: .normal, title: pinTitle, handler: { _,_,_ in
+            self.togglePinStatus(for: topic)
+        })
+        pin.backgroundColor = topic.isPinned ? .systemOrange : .systemBlue
+        if #available(iOS 13.0, *) {
+            pin.image = UIImage(systemName: topic.isPinned ? "pin.slash" : "pin")
+        }
+        actions.append(pin)
+
+        return UISwipeActionsConfiguration(actions: actions)
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         self.performSegue(withIdentifier: "Chats2Messages", sender: self.topics[indexPath.row].name)
+    }
+
+    private func togglePinStatus(for topic: DefaultComTopic) {
+        let previouslyPinned = topic.isPinned
+        topic.updatePinned(pinned: !previouslyPinned)?.then(
+            onSuccess: { [weak self] _ in
+                DispatchQueue.main.async {
+                    // Refresh the chat list to show the new pin status and order
+                    self?.interactor?.loadAndPresentTopics()
+                }
+                return nil
+            },
+            onFailure: { [weak self] error in
+                DispatchQueue.main.async {
+                    let alertMessage = previouslyPinned ?
+                        NSLocalizedString("Failed to unpin chat", comment: "Error message") :
+                        NSLocalizedString("Failed to pin chat", comment: "Error message")
+                    self?.showErrorAlert(message: alertMessage)
+                }
+                return nil
+            }
+        )
+    }
+
+    private func showErrorAlert(message: String) {
+        let alert = UIAlertController(title: NSLocalizedString("Error", comment: "Alert title"),
+                                    message: message,
+                                    preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NSLocalizedString("OK", comment: "Button"), style: .default))
+        present(alert, animated: true)
     }
 }
 

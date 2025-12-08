@@ -95,6 +95,13 @@ public enum JSONValue: Codable, Equatable {
         }
     }
 
+    public func asDouble() -> Double? {
+        if case let .double(v) = self {
+            return v
+        }
+        return nil
+    }
+
     public func asData() -> Data? {
         switch self {
         case .bytes(let val):

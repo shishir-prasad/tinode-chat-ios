@@ -143,7 +143,7 @@ class ChatListInteractor: ChatListBusinessLogic, ChatListDataStore {
         }
     }
     private func getTopics(archived: Bool) -> [DefaultComTopic]? {
-        return Utils.fetchTopics(archived: archived)
+        return Utils.fetchAllTopicsOrdered(archived: archived)
     }
     func loadAndPresentTopics() {
         self.topics = self.getTopics(archived: false)

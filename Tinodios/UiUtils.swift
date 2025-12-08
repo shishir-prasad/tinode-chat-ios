@@ -245,6 +245,10 @@ class UiUtils {
 
     public static func logoutAndRouteToLoginVC() {
         Cache.log.info("UiUtils - Starting complete session reset and logout.")
+
+        // CRITICAL: Hide connection banner immediately to ensure logout UI is accessible
+        hideConnectionStatusBanner()
+
         performCompleteLogout {
             UiUtils.routeToLoginVC()
         }
@@ -889,31 +893,71 @@ class UiUtils {
         banner.tag = 999
         rootVC.view.addSubview(banner)
 
-        // Position banner
+        // Position banner BELOW navigation bar to preserve logout access
         banner.translatesAutoresizingMaskIntoConstraints = false
+
+        // Calculate navigation bar height to position banner below it
+        let navBarHeight: CGFloat = {
+            if let navController = rootVC as? UINavigationController {
+                return navController.navigationBar.frame.height
+            } else if let navController = rootVC.children.first as? UINavigationController {
+                return navController.navigationBar.frame.height
+            }
+            return 44.0 // Default navigation bar height
+        }()
+
         NSLayoutConstraint.activate([
-            banner.topAnchor.constraint(equalTo: rootVC.view.safeAreaLayoutGuide.topAnchor),
-            banner.leadingAnchor.constraint(equalTo: rootVC.view.leadingAnchor),
-            banner.trailingAnchor.constraint(equalTo: rootVC.view.trailingAnchor),
-            banner.heightAnchor.constraint(equalToConstant: 30)
+            // Position below navigation bar instead of on top of safe area
+            banner.topAnchor.constraint(equalTo: rootVC.view.safeAreaLayoutGuide.topAnchor, constant: navBarHeight),
+            banner.leadingAnchor.constraint(equalTo: rootVC.view.leadingAnchor, constant: 8),
+            banner.trailingAnchor.constraint(equalTo: rootVC.view.trailingAnchor, constant: -8),
+            banner.heightAnchor.constraint(equalToConstant: 36) // Slightly taller for better visibility
         ])
 
-        // Auto-hide after delay for success status
-        if status == .connected {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                banner.removeFromSuperview()
+        // Enhanced auto-hide behavior with different timeouts based on status
+        let autoHideDelay: TimeInterval = {
+            switch status {
+            case .connected:
+                return 3.0 // Quick hide for success
+            case .reconnecting:
+                return 10.0 // Longer for reconnecting state
+            case .offline, .authenticationIssue:
+                return 0 // No auto-hide for critical states - user must dismiss
+            }
+        }()
+
+        if autoHideDelay > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + autoHideDelay) {
+                // Check if banner still exists before removing
+                if rootVC.view.subviews.contains(where: { $0.tag == 999 }) {
+                    banner.removeFromSuperview()
+                }
             }
         }
     }
 
     private static func createStatusBanner(for status: ConnectionStatus) -> UIView {
         let banner = UIView()
-        banner.layer.cornerRadius = 4
+        banner.layer.cornerRadius = 8
+        banner.layer.shadowOffset = CGSize(width: 0, height: 2)
+        banner.layer.shadowOpacity = 0.1
+        banner.layer.shadowRadius = 4
 
         let label = UILabel()
         label.textAlignment = .center
-        label.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+        label.font = UIFont.systemFont(ofSize: 13, weight: .medium)
         label.textColor = .white
+
+        // Create dismiss button for critical states
+        let needsDismissButton = (status == .offline || status == .authenticationIssue)
+        let dismissButton = UIButton(type: .system)
+
+        if needsDismissButton {
+            dismissButton.setTitle("✕", for: .normal)
+            dismissButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .bold)
+            dismissButton.setTitleColor(.white, for: .normal)
+            dismissButton.addTarget(self, action: #selector(dismissBannerAction), for: .touchUpInside)
+        }
 
         switch status {
         case .connected:
@@ -924,20 +968,106 @@ class UiUtils {
             label.text = NSLocalizedString("Reconnecting...", comment: "Status message")
         case .offline:
             banner.backgroundColor = .systemRed
-            label.text = NSLocalizedString("Offline", comment: "Status message")
+            label.text = NSLocalizedString("No internet connection - Tap to retry or dismiss", comment: "Status message")
         case .authenticationIssue:
             banner.backgroundColor = .systemRed
-            label.text = NSLocalizedString("Authentication Issue", comment: "Status message")
+            label.text = NSLocalizedString("Authentication Issue - Please check settings", comment: "Status message")
+        }
+
+        // Add tap gesture for reconnecting state to allow manual retry
+        if status == .reconnecting {
+            let tapGesture = UITapGestureRecognizer(target: self, action: #selector(retryConnectionAction))
+            banner.addGestureRecognizer(tapGesture)
+            banner.isUserInteractionEnabled = true
         }
 
         banner.addSubview(label)
         label.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: banner.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: banner.centerYAnchor)
-        ])
+
+        if needsDismissButton {
+            banner.addSubview(dismissButton)
+            dismissButton.translatesAutoresizingMaskIntoConstraints = false
+
+            NSLayoutConstraint.activate([
+                // Label positioned with space for dismiss button
+                label.leadingAnchor.constraint(equalTo: banner.leadingAnchor, constant: 16),
+                label.trailingAnchor.constraint(equalTo: dismissButton.leadingAnchor, constant: -8),
+                label.centerYAnchor.constraint(equalTo: banner.centerYAnchor),
+
+                // Dismiss button on the right
+                dismissButton.trailingAnchor.constraint(equalTo: banner.trailingAnchor, constant: -12),
+                dismissButton.centerYAnchor.constraint(equalTo: banner.centerYAnchor),
+                dismissButton.widthAnchor.constraint(equalToConstant: 24),
+                dismissButton.heightAnchor.constraint(equalToConstant: 24)
+            ])
+        } else {
+            // Center label when no dismiss button
+            NSLayoutConstraint.activate([
+                label.centerXAnchor.constraint(equalTo: banner.centerXAnchor),
+                label.centerYAnchor.constraint(equalTo: banner.centerYAnchor),
+                label.leadingAnchor.constraint(greaterThanOrEqualTo: banner.leadingAnchor, constant: 16),
+                label.trailingAnchor.constraint(lessThanOrEqualTo: banner.trailingAnchor, constant: -16)
+            ])
+        }
 
         return banner
+    }
+
+    // MARK: - Banner Action Methods
+
+    @objc private static func dismissBannerAction() {
+        guard let window = (UIApplication.shared.delegate as? AppDelegate)?.window,
+              let rootVC = window.rootViewController else { return }
+
+        // Remove banner when user taps dismiss
+        rootVC.view.subviews.filter { $0.tag == 999 }.forEach { $0.removeFromSuperview() }
+    }
+
+    @objc private static func retryConnectionAction() {
+        // Attempt reconnection when user taps reconnecting banner
+        Cache.log.info("User initiated reconnection from status banner")
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            if SharedUtils.isTokenValid() {
+                SharedUtils.attemptTokenBasedReconnection(using: Cache.tinode) { success, errorMessage in
+                    DispatchQueue.main.async {
+                        if success {
+                            UiUtils.showConnectionStatusBanner(status: .connected)
+                        } else {
+                            UiUtils.showConnectionStatusBanner(status: .offline)
+                            UiUtils.showToast(message: NSLocalizedString("Connection failed. Please check your network.", comment: "Error message"))
+                        }
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    UiUtils.showConnectionStatusBanner(status: .authenticationIssue)
+                }
+            }
+        }
+    }
+
+    /// Hide the connection status banner programmatically
+    /// This ensures logout and other critical actions remain accessible
+    public static func hideConnectionStatusBanner() {
+        DispatchQueue.main.async {
+            guard let window = (UIApplication.shared.delegate as? AppDelegate)?.window,
+                  let rootVC = window.rootViewController else { return }
+
+            // Remove any existing banner
+            rootVC.view.subviews.filter { $0.tag == 999 }.forEach {
+                $0.removeFromSuperview()
+                Cache.log.info("Connection status banner manually hidden")
+            }
+        }
+    }
+
+    /// Check if connection banner is currently blocking navigation
+    public static func isConnectionBannerVisible() -> Bool {
+        guard let window = (UIApplication.shared.delegate as? AppDelegate)?.window,
+              let rootVC = window.rootViewController else { return false }
+
+        return rootVC.view.subviews.contains { $0.tag == 999 }
     }
 }
 

@@ -45,6 +45,23 @@ extension PrivateType: Mergeable {
             self["arch"] = newValue != nil ? .bool(newValue!) : nil
         }
     }
+    public var pinned: Bool? {
+        get {
+            self["pinned"]?.asBool()
+        }
+        set {
+            self["pinned"] = newValue != nil ? .bool(newValue!) : nil
+        }
+    }
+    public var pinnedAt: Date? {
+        get {
+            guard let timestamp = self["pinnedAt"]?.asDouble() else { return nil }
+            return Date(timeIntervalSince1970: timestamp)
+        }
+        set {
+            self["pinnedAt"] = newValue != nil ? .double(newValue!.timeIntervalSince1970) : nil
+        }
+    }
     public mutating func merge(with another: Mergeable) -> Bool {
         guard another is PrivateType else { return false }
         let anotherPT = another as! PrivateType

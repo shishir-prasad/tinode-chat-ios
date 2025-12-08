@@ -106,6 +106,62 @@ public class Utils {
         }
     }
 
+    /// Fetch pinned topics.
+    public static func fetchPinnedTopics() -> [DefaultComTopic]? {
+        return Cache.tinode.getFilteredTopics(filter: { (topic: TopicProto) in
+            guard let comTopic = topic as? DefaultComTopic else { return false }
+            return topic.topicType.matches(TopicType.user) &&
+                   !topic.isArchived &&
+                   topic.isJoiner &&
+                   comTopic.isPinned
+        })?.map {
+            $0 as! DefaultComTopic
+        }.sorted { topic1, topic2 in
+            // Sort by pinned timestamp, then by touched date
+            if let date1 = topic1.pinnedAt, let date2 = topic2.pinnedAt {
+                return date1 > date2
+            }
+            return (topic1.touched ?? Date.distantPast) > (topic2.touched ?? Date.distantPast)
+        }
+    }
+
+    /// Fetch unpinned topics.
+    public static func fetchUnpinnedTopics() -> [DefaultComTopic]? {
+        return Cache.tinode.getFilteredTopics(filter: { (topic: TopicProto) in
+            guard let comTopic = topic as? DefaultComTopic else { return false }
+            return topic.topicType.matches(TopicType.user) &&
+                   !topic.isArchived &&
+                   topic.isJoiner &&
+                   !comTopic.isPinned
+        })?.map {
+            $0 as! DefaultComTopic
+        }.sorted { topic1, topic2 in
+            // Sort by touched date (most recent first)
+            return (topic1.touched ?? Date.distantPast) > (topic2.touched ?? Date.distantPast)
+        }
+    }
+
+    /// Fetch all topics ordered with pinned ones first.
+    public static func fetchAllTopicsOrdered(archived: Bool = false) -> [DefaultComTopic]? {
+        if archived {
+            return fetchTopics(archived: true)
+        }
+
+        var topics: [DefaultComTopic] = []
+
+        // Add pinned topics first
+        if let pinned = fetchPinnedTopics() {
+            topics.append(contentsOf: pinned)
+        }
+
+        // Add unpinned topics
+        if let unpinned = fetchUnpinnedTopics() {
+            topics.append(contentsOf: unpinned)
+        }
+
+        return topics.isEmpty ? nil : topics
+    }
+
     // Creates a URL out of Tinode ref.
     public static func tinodeResourceUrl(from ref: String) -> URL? {
         let u = URL(string: ref, relativeTo: Cache.tinode.baseURL(useWebsocketProtocol: false))

@@ -48,6 +48,23 @@ public class ComTopic: Topic<TheCard, PrivateType, TheCard, PrivateType> {
         }
     }
 
+    /// Check if the topic is pinned.
+    public var isPinned: Bool {
+        guard let pinned = priv?["pinned"] else { return false }
+        switch pinned {
+        case .bool(let x):
+            return x
+        default:
+            return false
+        }
+    }
+
+    /// Get the timestamp when the topic was pinned.
+    public var pinnedAt: Date? {
+        guard let timestamp = priv?["pinnedAt"]?.asDouble() else { return nil }
+        return Date(timeIntervalSince1970: timestamp)
+    }
+
     /// Check if the topic is a channel.
     public var isChannel: Bool {
         return ComTopic.isChannel(name: name)
@@ -84,6 +101,28 @@ public class ComTopic: Topic<TheCard, PrivateType, TheCard, PrivateType> {
         priv.archived = archived
         let meta = MsgSetMeta<TheCard, PrivateType>(desc: MetaSetDesc(pub: nil, priv: priv))
         return setMeta(meta: meta)
+    }
+
+    /// Send message to server that the topic is pinned or un-pinned.
+    /// - Parameters:
+    ///  - pinned: `true` to pin the topic, `false` to un-pin.
+    /// - Returns: PromisedReply of the reply ctrl message
+    public func updatePinned(pinned: Bool) -> PromisedReply<ServerMessage>? {
+        var priv = PrivateType()
+        priv.pinned = pinned
+        if pinned {
+            priv.pinnedAt = Date()
+        } else {
+            priv.pinnedAt = nil
+        }
+        let meta = MsgSetMeta<TheCard, PrivateType>(desc: MetaSetDesc(pub: nil, priv: priv))
+        return setMeta(meta: meta)
+    }
+
+    /// Toggle the pinned state of the topic.
+    /// - Returns: PromisedReply of the reply ctrl message
+    public func togglePinned() -> PromisedReply<ServerMessage>? {
+        return updatePinned(pinned: !isPinned)
     }
 
     /// Set message as pinned or unpinned by adding it to aux.pins array.
