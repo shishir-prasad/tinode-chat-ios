@@ -174,10 +174,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             SharedUtils.attemptTokenBasedReconnection(using: Cache.tinode) { success, errorMessage in
                 if success {
                     Cache.log.info("App reactivation reconnection successful")
-                    UiUtils.showConnectionStatusBanner(status: .connected)
+                    // Connection successful - no need to notify user, app works seamlessly
                 } else {
                     Cache.log.info("App reactivation reconnection failed: %@", errorMessage ?? "Unknown error")
-                    UiUtils.showConnectionStatusBanner(status: .reconnecting)
+                    // Reconnection continues silently in background - no need to notify user
 
                     // Schedule retry if appropriate
                     if SharedUtils.shouldAttemptAutoReconnection() {
@@ -405,9 +405,7 @@ extension AppDelegate: PKPushRegistryDelegate {
             connectionCompleted = true
             if success {
                 Cache.log.info("Background connection successful")
-                DispatchQueue.main.async {
-                    UiUtils.showConnectionStatusBanner(status: .connected)
-                }
+                // Connection successful - no need to notify user, app works seamlessly
             } else {
                 Cache.log.error("Background connection failed: %@", errorMessage ?? "Unknown error")
 
@@ -418,9 +416,7 @@ extension AppDelegate: PKPushRegistryDelegate {
                         UiUtils.routeToLoginVC()
                     }
                 } else {
-                    DispatchQueue.main.async {
-                        UiUtils.showConnectionStatusBanner(status: .reconnecting)
-                    }
+                    // Reconnection continues silently in background - no need to notify user
                 }
             }
         }
@@ -429,9 +425,7 @@ extension AppDelegate: PKPushRegistryDelegate {
         DispatchQueue.global(qos: .background).asyncAfter(deadline: timeout) {
             if !connectionCompleted {
                 Cache.log.info("Background connection timed out")
-                DispatchQueue.main.async {
-                    UiUtils.showConnectionStatusBanner(status: .reconnecting)
-                }
+                // Timeout continues silently - connection will retry automatically
             }
         }
     }
@@ -453,7 +447,7 @@ extension AppDelegate: PKPushRegistryDelegate {
             if success {
                 Cache.log.info("Enhanced token reconnection successful - routing to chat list")
                 UiUtils.routeToChatListVC()
-                UiUtils.showConnectionStatusBanner(status: .connected)
+                // Connection successful - no need to notify user, app works seamlessly
             } else {
                 Cache.log.info("Enhanced token reconnection failed: %@", errorMessage ?? "Unknown error")
 
@@ -518,7 +512,7 @@ extension AppDelegate: PKPushRegistryDelegate {
             DispatchQueue.main.async {
                 if success {
                     Cache.log.info("Background reconnection successful")
-                    UiUtils.showConnectionStatusBanner(status: .connected)
+                    // Connection successful - no need to notify user, app works seamlessly
                     SharedUtils.recordSuccessfulConnection()
                     self.startupRetryCount = 0 // Reset on success
                 } else if self.startupRetryCount < self.maxStartupRetries {

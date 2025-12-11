@@ -71,7 +71,7 @@ class SettingsSecurityViewController: UITableViewController {
             // No blocked contacts, disable cell.
             self.actionBlockedContacts.isUserInteractionEnabled = false
             self.actionBlockedContacts.textLabel?.isEnabled = false
-            self.actionBlockedContacts.imageView?.tintColor = UIColor.gray
+            self.actionBlockedContacts.imageView?.tintColor = UIColor.tertiaryLabel
             self.actionBlockedContacts.accessoryType = .none
         } else {
             // Some blocked contacts, enable cell.

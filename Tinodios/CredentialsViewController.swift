@@ -17,11 +17,8 @@ class CredentialsViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        if traitCollection.userInterfaceStyle == .dark {
-            self.view.backgroundColor = .black
-        } else {
-            self.view.backgroundColor = .white
-        }
+        // Use adaptive system background for proper dark mode contrast
+        self.view.backgroundColor = .systemBackground
         self.authToken = Cache.tinode.authToken
         UiUtils.dismissKeyboardForTaps(onView: self.view)
     }

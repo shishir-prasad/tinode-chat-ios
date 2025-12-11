@@ -12,10 +12,10 @@ import UIKit
     // MARK: constants
 
     private enum Constants {
-        static let defaultPlaceholderColorLight = UIColor(red: 0, green: 0, blue: 25/255, alpha: 0.22)
-        static let defaultPlaceholderColorDark = UIColor.lightGray
-        static let defaultTextColorLight = UIColor.black
-        static let defaultTextColorDark = UIColor.white
+        static let defaultPlaceholderColorLight = UIColor.placeholderText
+        static let defaultPlaceholderColorDark = UIColor.placeholderText
+        static let defaultTextColorLight = UIColor.label
+        static let defaultTextColorDark = UIColor.label
         static let defaultPlaceholderText = "AbCd..."
     }
 

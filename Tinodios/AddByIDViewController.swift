@@ -53,11 +53,8 @@ class AddByIDViewController: UIViewController {
     }
 
     private func setInterfaceColors() {
-        if traitCollection.userInterfaceStyle == .dark {
-            self.view.backgroundColor = .black
-        } else {
-            self.view.backgroundColor = .white
-        }
+        // Use adaptive system background for proper dark mode contrast
+        self.view.backgroundColor = .systemBackground
     }
 
     @objc func textFieldDidChange(_ textField: UITextField) {

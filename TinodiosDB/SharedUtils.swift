@@ -669,6 +669,10 @@ public class SharedUtils {
 
     // MARK: - Enhanced Token-Based Reconnection
 
+    // Add reconnection state tracking to prevent overlapping attempts
+    private static var reconnectionInProgress = false
+    private static let reconnectionQueue = DispatchQueue(label: "co.tinode.reconnection", qos: .userInitiated)
+
     public static func isTokenValid() -> Bool {
         guard let token = getAuthToken(), !token.isEmpty else {
             return false
@@ -689,21 +693,33 @@ public class SharedUtils {
     }
 
     public static func attemptTokenBasedReconnection(using tinode: Tinode, completion: @escaping (Bool, String?) -> Void) {
+        // Prevent multiple simultaneous reconnection attempts
+        guard !reconnectionInProgress else {
+            BaseDb.log.info("Reconnection already in progress - skipping duplicate attempt")
+            completion(false, "Reconnection already in progress")
+            return
+        }
+
         guard let userName = getSavedLoginUserName(), !userName.isEmpty,
               let token = getAuthToken(), !token.isEmpty else {
             completion(false, "No saved credentials available")
             return
         }
 
-        BaseDb.log.info("Attempting token-based reconnection for user: %@", userName,token)
+        // Set reconnection flag and show single "reconnecting" state
+        reconnectionInProgress = true
+        BaseDb.log.info("Starting token-based reconnection for user: %@", userName)
 
         tinode.setAutoLoginWithToken(token: token)
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        reconnectionQueue.async {
             do {
                 let msg = try tinode.connectDefault(inBackground: false)?.getResult()
                 if let ctrl = msg?.ctrl {
                     DispatchQueue.main.async {
+                        // Always reset reconnection flag
+                        self.reconnectionInProgress = false
+
                         switch ctrl.code {
                         case 0..<300:
                             let myUid = ctrl.getStringParam(for: "user")
@@ -730,12 +746,14 @@ public class SharedUtils {
                     }
                 } else {
                     DispatchQueue.main.async {
+                        self.reconnectionInProgress = false
                         BaseDb.log.error("Token-based reconnection failed - no response from server")
                         completion(false, "No response from server")
                     }
                 }
             } catch {
                 DispatchQueue.main.async {
+                    self.reconnectionInProgress = false
                     BaseDb.log.error("Token-based reconnection failed - connection error: %@", error.localizedDescription)
 
                     // Check if it's an auth error

@@ -171,7 +171,7 @@ class NewGroupViewController: UITableViewController {
         if show {
             let messageLabel = UILabel(frame: CGRect(x: 0, y: 0, width: tableView.bounds.width, height: tableView.bounds.height))
             messageLabel.text = NSLocalizedString("No members selected", comment: "Placeholder when no members are selected")
-            messageLabel.textColor = .gray
+            messageLabel.textColor = .secondaryLabel
             messageLabel.numberOfLines = 0
             messageLabel.textAlignment = .center
             messageLabel.font = .preferredFont(forTextStyle: .body)

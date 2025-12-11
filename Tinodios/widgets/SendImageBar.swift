@@ -74,7 +74,7 @@ class SendImageBar: UIView {
     private func loadNib() {
         let nib = UINib(nibName: "SendImageBar", bundle: Bundle(for: type(of: self)))
         let nibView = nib.instantiate(withOwner: self, options: nil).first as! UIView
-        nibView.backgroundColor = UIColor.lightGray.withAlphaComponent(0.5)
+        nibView.backgroundColor = UIColor.secondarySystemBackground
         nibView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(nibView)
         NSLayoutConstraint.activate([

@@ -26,7 +26,7 @@ class ForwardMessageBar: UIView {
     private func loadNib() {
         let nib = UINib(nibName: "ForwardMessageBar", bundle: Bundle(for: type(of: self)))
         let nibView = nib.instantiate(withOwner: self, options: nil).first as! UIView
-        nibView.backgroundColor = UIColor.lightGray.withAlphaComponent(0.5)
+        nibView.backgroundColor = UIColor.secondarySystemBackground
         nibView.translatesAutoresizingMaskIntoConstraints = false
         self.autoresizingMask = .flexibleHeight
 

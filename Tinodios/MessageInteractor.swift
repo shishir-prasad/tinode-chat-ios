@@ -359,17 +359,15 @@ class MessageInteractor: DefaultComTopic.Listener, MessageBusinessLogic, Message
         if !Cache.tinode.isConnected {
             Cache.log.info("Not connected - attempting token-based reconnection before sending message")
 
-            // Show reconnecting status
-            DispatchQueue.main.async {
-                UiUtils.showConnectionStatusBanner(status: .reconnecting)
-            }
+            // Attempt reconnection silently in background
+            Cache.log.info("Attempting reconnection before sending message")
 
             // Attempt reconnection before sending
             SharedUtils.attemptTokenBasedReconnection(using: Cache.tinode) { [weak self] success, errorMessage in
                 if success {
                     Cache.log.info("Reconnection successful - now sending message")
                     DispatchQueue.main.async {
-                        UiUtils.showConnectionStatusBanner(status: .connected)
+                        // Connection successful - no need to notify user, app works seamlessly
                         // Retry the message send after successful reconnection
                         self?.performMessageSend(content: content)
                     }

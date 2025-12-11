@@ -48,22 +48,16 @@ class MessageCell: UICollectionViewCell {
 
     public override init(frame: CGRect) {
         super.init(frame: frame)
-        if traitCollection.userInterfaceStyle == .dark {
-            backgroundColor = .black
-        } else {
-            backgroundColor = .white
-        }
+        // Use adaptive system background for proper dark mode contrast
+        backgroundColor = .systemBackground
         contentView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         setupSubviews()
     }
 
     public required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
-        if traitCollection.userInterfaceStyle == .dark {
-            backgroundColor = .black
-        } else {
-            backgroundColor = .white
-        }
+        // Use adaptive system background for proper dark mode contrast
+        backgroundColor = .systemBackground
         contentView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         setupSubviews()
     }

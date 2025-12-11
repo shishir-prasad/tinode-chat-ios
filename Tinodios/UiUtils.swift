@@ -317,16 +317,20 @@ class UiUtils {
         }
     }
 
-    // NEW: Enhanced routing with connection check
+    // NEW: Enhanced routing with connection check and navigation lock
     public static func routeToChatListVCWithConnectionCheck() {
+        // Prevent multiple navigation operations during transitions
+        guard !navigationInProgress else { return }
+        navigationInProgress = true
+
         // Route to chat list but show connection status
         routeToChatListVC()
 
-        // Check connection status after routing
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            if !Cache.tinode.isConnected {
-                UiUtils.showConnectionStatusBanner(status: .reconnecting)
-            }
+        // Allow time for connection to establish silently
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            // Connection management happens automatically in background
+            // No need to notify user about reconnecting state
+            navigationInProgress = false
         }
     }
 
@@ -875,22 +879,59 @@ class UiUtils {
 
     // MARK: - Connection Status Indicators
 
-    public enum ConnectionStatus {
+    public enum ConnectionStatus: Equatable {
         case connected
         case reconnecting
         case offline
         case authenticationIssue
     }
 
+    // MARK: - Connection State Management
+
+    private static var statusUpdateTimer: Timer?
+    private static var lastStatus: ConnectionStatus?
+    private static var navigationInProgress = false
+
+    /// Debounced connection status banner for critical notifications only
+    public static func showConnectionStatusBannerDebounced(status: ConnectionStatus, delay: TimeInterval = 0.5) {
+        // Only show critical notifications that require user action
+        guard status == .offline || status == .authenticationIssue else {
+            return
+        }
+
+        statusUpdateTimer?.invalidate()
+
+        // Don't show if status hasn't changed
+        guard lastStatus != status else { return }
+
+        statusUpdateTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
+            lastStatus = status
+            showConnectionStatusBanner(status: status)
+        }
+    }
+
     public static func showConnectionStatusBanner(status: ConnectionStatus) {
+        // Only show critical notifications that require user action
+        guard status == .offline || status == .authenticationIssue else {
+            return
+        }
+
         guard let window = (UIApplication.shared.delegate as? AppDelegate)?.window,
               let rootVC = window.rootViewController else { return }
 
-        // Remove existing banner
-        rootVC.view.subviews.filter { $0.tag == 999 }.forEach { $0.removeFromSuperview() }
+        // Find existing banner
+        let existingBanner = rootVC.view.subviews.first { $0.tag == 999 }
 
+        if let existing = existingBanner {
+            // Animate banner content change instead of replacing
+            updateBannerContent(existing, for: status)
+            return
+        }
+
+        // Create new banner with fade-in animation
         let banner = createStatusBanner(for: status)
         banner.tag = 999
+        banner.alpha = 0
         rootVC.view.addSubview(banner)
 
         // Position banner BELOW navigation bar to preserve logout access
@@ -917,20 +958,29 @@ class UiUtils {
         // Enhanced auto-hide behavior with different timeouts based on status
         let autoHideDelay: TimeInterval = {
             switch status {
-            case .connected:
-                return 3.0 // Quick hide for success
-            case .reconnecting:
-                return 10.0 // Longer for reconnecting state
             case .offline, .authenticationIssue:
                 return 0 // No auto-hide for critical states - user must dismiss
+            case .connected, .reconnecting:
+                // These cases should no longer be called, but handle gracefully
+                return 3.0
             }
         }()
+
+        // Animate banner appearance
+        UIView.animate(withDuration: 0.3) {
+            banner.alpha = 1
+        }
 
         if autoHideDelay > 0 {
             DispatchQueue.main.asyncAfter(deadline: .now() + autoHideDelay) {
                 // Check if banner still exists before removing
                 if rootVC.view.subviews.contains(where: { $0.tag == 999 }) {
-                    banner.removeFromSuperview()
+                    UIView.animate(withDuration: 0.3, animations: {
+                        banner.alpha = 0
+                    }) { _ in
+                        banner.removeFromSuperview()
+                        lastStatus = nil // Reset status when banner is removed
+                    }
                 }
             }
         }
@@ -960,22 +1010,20 @@ class UiUtils {
         }
 
         switch status {
-        case .connected:
-            banner.backgroundColor = .systemGreen
-            label.text = NSLocalizedString("Connected", comment: "Status message")
-        case .reconnecting:
-            banner.backgroundColor = .systemOrange
-            label.text = NSLocalizedString("Reconnecting...", comment: "Status message")
         case .offline:
             banner.backgroundColor = .systemRed
             label.text = NSLocalizedString("No internet connection - Tap to retry or dismiss", comment: "Status message")
         case .authenticationIssue:
             banner.backgroundColor = .systemRed
             label.text = NSLocalizedString("Authentication Issue - Please check settings", comment: "Status message")
+        case .connected, .reconnecting:
+            // These cases should no longer be called, but handle gracefully
+            banner.backgroundColor = .clear
+            label.text = ""
         }
 
-        // Add tap gesture for reconnecting state to allow manual retry
-        if status == .reconnecting {
+        // Add tap gesture for offline state to allow manual retry
+        if status == .offline {
             let tapGesture = UITapGestureRecognizer(target: self, action: #selector(retryConnectionAction))
             banner.addGestureRecognizer(tapGesture)
             banner.isUserInteractionEnabled = true
@@ -1013,6 +1061,42 @@ class UiUtils {
         return banner
     }
 
+    /// Update existing banner content with smooth animation
+    private static func updateBannerContent(_ banner: UIView, for status: ConnectionStatus) {
+        guard let label = banner.subviews.first(where: { $0 is UILabel }) as? UILabel else { return }
+
+        let (newText, newBackgroundColor): (String, UIColor) = {
+            switch status {
+            case .offline:
+                return (NSLocalizedString("No internet connection - Tap to retry or dismiss", comment: "Status message"), .systemRed)
+            case .authenticationIssue:
+                return (NSLocalizedString("Authentication Issue - Please check settings", comment: "Status message"), .systemRed)
+            case .connected, .reconnecting:
+                // These cases should no longer be called, but handle gracefully
+                return ("", .clear)
+            }
+        }()
+
+        // Animate content change
+        UIView.animate(withDuration: 0.2, animations: {
+            banner.backgroundColor = newBackgroundColor
+            label.text = newText
+            banner.alpha = 0.8
+        }) { _ in
+            UIView.animate(withDuration: 0.1) {
+                banner.alpha = 1.0
+            }
+        }
+
+        // Update tap gesture for retry actions (offline state)
+        banner.gestureRecognizers?.removeAll()
+        if status == .offline {
+            let tapGesture = UITapGestureRecognizer(target: self, action: #selector(retryConnectionAction))
+            banner.addGestureRecognizer(tapGesture)
+            banner.isUserInteractionEnabled = true
+        }
+    }
+
     // MARK: - Banner Action Methods
 
     @objc private static func dismissBannerAction() {
@@ -1032,16 +1116,16 @@ class UiUtils {
                 SharedUtils.attemptTokenBasedReconnection(using: Cache.tinode) { success, errorMessage in
                     DispatchQueue.main.async {
                         if success {
-                            UiUtils.showConnectionStatusBanner(status: .connected)
+                            // Connection successful - no need to notify user, app works seamlessly
                         } else {
-                            UiUtils.showConnectionStatusBanner(status: .offline)
+                            UiUtils.showConnectionStatusBannerDebounced(status: .offline, delay: 0.2)
                             UiUtils.showToast(message: NSLocalizedString("Connection failed. Please check your network.", comment: "Error message"))
                         }
                     }
                 }
             } else {
                 DispatchQueue.main.async {
-                    UiUtils.showConnectionStatusBanner(status: .authenticationIssue)
+                    UiUtils.showConnectionStatusBannerDebounced(status: .authenticationIssue, delay: 0.2)
                 }
             }
         }
@@ -1459,7 +1543,7 @@ extension UITextField {
     /// Turns secure text entry mode on and displays a little eye switch on the right side of the field.
     public func showSecureEntrySwitch() {
         self.isSecureTextEntry = true
-        self.setRightView(imageNamed: "eye-30", withTintColor: .gray, withContentType: UITextField.RightViewContentTypePassword)
+        self.setRightView(imageNamed: "eye-30", withTintColor: .secondaryLabel, withContentType: UITextField.RightViewContentTypePassword)
         let view = self.rightView!
 
         UiUtils.setupTapRecognizer(forView: view, action: #selector(eyeIconTapped), actionTarget: self)

@@ -71,17 +71,17 @@ class MessageViewController: UIViewController {
         static let kOutgoingBubbleColorDark = UIColor(red: 37/255, green: 99/255, blue: 235/255, alpha: 1)
         // And corresponding text color
         static let kOutgoingTextColorLight = UIColor.white
-        static let kOutgoingTextColorDark = UIColor.lightText
+        static let kOutgoingTextColorDark = UIColor.white
         // Bright/dark green color
-        static let kIncomingBubbleColorLight = UIColor(red: 244/255, green: 244/255, blue: 244/255, alpha: 1)
-        static let kIncomingBubbleColorDark = UIColor(red: 244/255, green: 244/255, blue: 244/255, alpha: 1)
+        static let kIncomingBubbleColorLight = UIColor.secondarySystemBackground
+        static let kIncomingBubbleColorDark = UIColor.secondarySystemBackground
         // And corresponding font color
-        static let kIncomingTextColorLight = UIColor.darkText
-        static let kIncomingTextColorDark = UIColor.lightText
+        static let kIncomingTextColorLight = UIColor.label
+        static let kIncomingTextColorDark = UIColor.label
         // Meta-messages, such as "Content deleted".
-        static let kDeletedMessageBubbleColorLight = UIColor(fromHexCode: 0xffe3f2fd)
-        static let kDeletedMessageBubbleColorDark = UIColor(fromHexCode: 0xff263238)
-        static let kDeletedMessageTextColor = UIColor.gray
+        static let kDeletedMessageBubbleColorLight = UIColor.tertiarySystemBackground
+        static let kDeletedMessageBubbleColorDark = UIColor.tertiarySystemBackground
+        static let kDeletedMessageTextColor = UIColor.secondaryLabel
 
         static let kContentFont = UIFont.preferredFont(forTextStyle: .body)
 
@@ -595,11 +595,8 @@ class MessageViewController: UIViewController {
     }
 
     private func setInterfaceColors() {
-        if traitCollection.userInterfaceStyle == .dark {
-            view.backgroundColor = .black
-        } else {
-            view.backgroundColor = .white
-        }
+        // Use adaptive system background for proper dark mode contrast
+        view.backgroundColor = .systemBackground
     }
 
     @objc func navBarCallTapped(sender: UIMenuController) {

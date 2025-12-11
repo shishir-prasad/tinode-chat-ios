@@ -250,7 +250,7 @@ public class RoundImageView: UIImageView {
 
     private func setCornerRadius() {
         layer.cornerRadius = min(bounds.width, bounds.height)/2
-        layer.borderColor = UIColor.black.cgColor
+        layer.borderColor = UIColor.separator.cgColor
         layer.borderWidth = 0.1
     }
 }

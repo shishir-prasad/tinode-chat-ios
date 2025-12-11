@@ -56,7 +56,7 @@ class ChatListViewController: UITableViewController, ChatListDisplayLogic {
         archivedChatsFooter!.backgroundColor = tableView.backgroundColor
         let button = UIButton(frame: CGRect(x: 0, y: 0, width: tableView.frame.width, height: ChatListViewController.kFooterHeight))
         button.setTitle(NSLocalizedString("Archived Chats", comment: "View title"), for: .normal)
-        button.setTitleColor(UIColor.darkGray, for: .normal)
+        button.setTitleColor(UIColor.secondaryLabel, for: .normal)
         button.titleLabel?.font = button.titleLabel?.font.withSize(15)
         button.addTarget(self, action: #selector(navigateToArchive), for: .touchUpInside)
         archivedChatsFooter!.addSubview(button)
@@ -103,7 +103,7 @@ class ChatListViewController: UITableViewController, ChatListDisplayLogic {
         // Create label
         let label = UILabel()
         label.text = "Powered By CloudQix"
-        label.textColor = UIColor.darkGray
+        label.textColor = UIColor.secondaryLabel
         label.font = UIFont.systemFont(ofSize: 14)
         label.translatesAutoresizingMaskIntoConstraints = false
 
@@ -361,7 +361,7 @@ extension ChatListViewController {
             let rect = CGRect(x: 0, y: 0, width: view.bounds.width, height: view.bounds.height)
             let messageLabel = UILabel(frame: rect)
             messageLabel.text = NSLocalizedString("You have no chats\n\n¯\\_(ツ)_/¯", comment: "Placeholder when no chats found")
-            messageLabel.textColor = .darkGray
+            messageLabel.textColor = .secondaryLabel
             messageLabel.numberOfLines = 0
             messageLabel.textAlignment = .center
             messageLabel.font = UIFont.preferredFont(forTextStyle: .body)

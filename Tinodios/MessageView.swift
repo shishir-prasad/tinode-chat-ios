@@ -19,11 +19,8 @@ class MessageView: UICollectionView {
 
     public override init(frame: CGRect, collectionViewLayout layout: UICollectionViewLayout) {
         super.init(frame: frame, collectionViewLayout: layout)
-        if traitCollection.userInterfaceStyle == .dark {
-            backgroundColor = .black
-        } else {
-            backgroundColor = .white
-        }
+        // Use adaptive system background for proper dark mode contrast
+        backgroundColor = .systemBackground
 
         // Reusable message cells
         register(MessageCell.self, forCellWithReuseIdentifier: String(describing: MessageCell.self))
@@ -96,7 +93,7 @@ extension MessageView {
             /*
             let messageLabel = UILabel(frame: CGRect(x: 0, y: 0, width: self.bounds.size.width, height: self.bounds.size.height))
             messageLabel.text = NSLocalizedString("No messages in the conversation", comment: "Placeholder in empty chat")
-            messageLabel.textColor = .darkGray
+            messageLabel.textColor = .secondaryLabel
             messageLabel.numberOfLines = 0
             messageLabel.textAlignment = .center
             messageLabel.font = .preferredFont(forTextStyle: .headline)
