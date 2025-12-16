@@ -108,7 +108,7 @@
 "connecting" = "联运的";
 
 /* Toast notification */
-"Connection to server lost." = "与服务器的连接丢失。";
+"Reconnecting to server..." = "正在重新连接到服务器...";
 
 /* Replacement for chat message with no content */
 "Content deleted" = "内容已删除";

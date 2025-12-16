@@ -108,7 +108,7 @@
 "connecting" = "conectando";
 
 /* Toast notification */
-"Connection to server lost." = "Se perdió la conexión al servidor.";
+"Reconnecting to server..." = "Reconectando al servidor...";
 
 /* Replacement for chat message with no content */
 "Content deleted" = "Este mensaje fue eliminado";

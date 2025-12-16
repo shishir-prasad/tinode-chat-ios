@@ -33,9 +33,7 @@ class NewGroupViewController: UITableViewController {
         self.tagsTextField.onVerifyTag = { (_, tag) in
             return Utils.isValidTag(tag: tag)
         }
-        if !Cache.isContactSynchronizerActive() {
-            Cache.synchronizeContactsPeriodically()
-        }
+        // Contact synchronization disabled - no longer requesting contact permissions
 
         // Add me to selectedUids and selectedContacts.
         if let myUid = Cache.tinode.myUid {

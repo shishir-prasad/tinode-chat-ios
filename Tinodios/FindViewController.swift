@@ -44,15 +44,10 @@ class FindViewController: UITableViewController, FindDisplayLogic {
     }
 
     private func updateSearchBarPlaceholder(authStatus: CNAuthorizationStatus) {
-        let placeholderText: String
-        let placeholderFontSize: CGFloat
-        if authStatus == .authorized {
-            placeholderText = NSLocalizedString("Search by tags", comment: "Placeholder prompt")
-            placeholderFontSize = 17
-        } else {
-            placeholderText = NSLocalizedString("Search functionality limited. Grant Contacts permission.", comment: "Error message when permissions are missing")
-            placeholderFontSize = 10
-        }
+        // Contact synchronization disabled - always show standard search placeholder
+        let placeholderText = NSLocalizedString("Search by tags or username", comment: "Placeholder prompt")
+        let placeholderFontSize: CGFloat = 17
+
         searchController.searchBar.textField?.attributedPlaceholder =
             NSAttributedString(
                 string: placeholderText,
@@ -95,10 +90,8 @@ class FindViewController: UITableViewController, FindDisplayLogic {
         searchController.searchBar.delegate = self
         self.definesPresentationContext = true
 
-        if !Cache.isContactSynchronizerActive() {
-            Cache.synchronizeContactsPeriodically()
-        }
-        self.updateSearchBarPlaceholder(authStatus: ContactsSynchronizer.default.authStatus)
+        // Contact synchronization disabled - no longer requesting contact permissions
+        self.updateSearchBarPlaceholder(authStatus: .denied)
 
         addAppStateObservers()
     }

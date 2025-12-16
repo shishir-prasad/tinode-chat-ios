@@ -41,15 +41,12 @@ class Cache {
         }
     }
     public static func isContactSynchronizerActive() -> Bool {
-        return Cache.shared.timer.state == .resumed
+        // Contact synchronization disabled
+        return false
     }
     public static func synchronizeContactsPeriodically() {
-        Cache.shared.timer.suspend()
-        // Try to synchronize contacts immediately
-        ContactsSynchronizer.default.run()
-        // And repeat once every 4 hours.
-        Cache.shared.timer.eventHandler = { ContactsSynchronizer.default.run() }
-        Cache.shared.timer.resume()
+        // Contact synchronization disabled - no longer requesting contact permissions
+        Cache.log.info("Contact synchronization is disabled")
     }
     private func getTinode() -> Tinode {
         // TODO: fix tsan false positive.

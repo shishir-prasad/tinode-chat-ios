@@ -108,7 +108,7 @@
 "connecting" = "з'єднується";
 
 /* Toast notification */
-"Connection to server lost." = "Зв'язок із сервером втрачено.";
+"Reconnecting to server..." = "Перепідключення до сервера...";
 
 /* Replacement for chat message with no content */
 "Content deleted" = "Контент видалено";

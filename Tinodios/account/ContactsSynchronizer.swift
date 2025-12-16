@@ -110,73 +110,17 @@ class ContactsSynchronizer {
         }
     }
     func run() {
-        switch self.authStatus {
-        case .notDetermined:
-            self.store.requestAccess(for: .contacts,
-                                     completionHandler: { [weak self] (granted, error) in
-                if granted {
-                    // This will trigger synchronizeInternal.
-                    self?.authStatus = .authorized
-                } else {
-                    Cache.log.error("ContactsSynchronizer - permissions denied.")
-                    self?.authStatus = .denied
-                }
-            })
-        case .authorized:
-            self.queue.async {
-                self.synchronizeInternal()
-            }
-        default:
-            Cache.log.info("ContactsSynchronizer - not authorized to access contacts. quitting...")
-            break
-        }
+        // Contact synchronization disabled - no longer requesting contact permissions
+        Cache.log.info("ContactsSynchronizer - synchronization disabled, skipping run")
+        return
     }
     private func contactsToQueryString(contacts: [ContactHolder2]) -> String {
         return contacts.map { $0.toString() }.joined(separator: ",")
     }
     private func synchronizeInternal() {
-        var success = false
-        let contactsManager = ContactsManager.default
-        let t0 = SharedUtils.getAuthToken()
-        if let token = t0, !token.isEmpty, let contacts = self.fetchContacts(), !contacts.isEmpty {
-            Cache.log.info("ContactsSynchronizer - starting sync.")
-            let contacts: String = contactsToQueryString(contacts: contacts)
-            var lastSyncMarker = self.serverSyncMarker
-            let tinode = Cache.tinode
-            do {
-                tinode.setAutoLoginWithSSO(token: token)
-                _ = try tinode.connectDefault(inBackground: true)?.getResult()
-
-                _ = try tinode.loginToken(token: token, creds: nil).getResult()
-                // Generic params don't matter.
-                _ = try tinode.subscribe(to: Tinode.kTopicFnd, set: MsgSetMeta<Int, Int>?(nil), get: nil).getResult()
-                let metaDesc: MetaSetDesc<Int, String> = MetaSetDesc(pub: nil, priv: contacts)
-                let setMeta: MsgSetMeta<Int, String> = MsgSetMeta<Int, String>(desc: metaDesc)
-                _ = try tinode.setMeta(for: Tinode.kTopicFnd, meta: setMeta).getResult()
-                let meta = MsgGetMeta(sub: MetaGetSub(ims: lastSyncMarker))
-                let future = tinode.getMeta(topic: Tinode.kTopicFnd, query: meta)
-                if try future.waitResult() {
-                    let pkt = try! future.getResult()
-                    guard let subs = pkt?.meta?.sub else { return }
-                    for sub in subs {
-                        if Tinode.topicTypeByName(name: sub.user) == .p2p {
-                            if (lastSyncMarker ?? Date.distantPast) < (sub.updated ?? Date.distantPast) {
-                                lastSyncMarker = sub.updated
-                            }
-                            contactsManager.processSubscription(sub: sub)
-                        }
-                    }
-                    if lastSyncMarker != nil {
-                        serverSyncMarker = lastSyncMarker
-                    }
-                }
-
-                success = true
-            } catch {
-                Cache.log.error("ContactsSynchronizer - sync failure: %@", error.localizedDescription)
-            }
-            Cache.log.info("ContactsSynchronizer - sync operation completed: %@", (success ? "success" : "failure"))
-        }
+        // Contact synchronization disabled - no longer syncing with server
+        Cache.log.info("ContactsSynchronizer - synchronization disabled, skipping sync")
+        return
     }
 }
 

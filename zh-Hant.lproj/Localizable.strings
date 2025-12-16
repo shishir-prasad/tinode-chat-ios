@@ -108,7 +108,7 @@
 "connecting" = "連線";
 
 /* Toast notification */
-"Connection to server lost." = "失去與伺服器的連線。";
+"Reconnecting to server..." = "正在重新連線到伺服器...";
 
 /* Replacement for chat message with no content */
 "Content deleted" = "內容已刪除";

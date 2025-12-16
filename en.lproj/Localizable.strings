@@ -78,7 +78,7 @@
 "Confirmed successfully" = "Confirmed successfully";
 
 /* Toast notification */
-"Connection to server lost." = "Connection to server lost.";
+"Reconnecting to server..." = "Reconnecting to server...";
 
 /* Menu item */
 "Copy" = "Copy";

@@ -35,9 +35,9 @@ class UiTinodeEventListener: TinodeEventListener {
     }
     func onDisconnect(byServer: Bool, code: URLSessionWebSocketTask.CloseCode, reason: String) {
         if connected {
-            // If we just got disconnected, display the connection lost message.
+            // If we just got disconnected, display the reconnecting message.
             DispatchQueue.main.async {
-                UiUtils.showToast(message: NSLocalizedString("Connection to server lost.", comment: "Toast notification"))
+                UiUtils.showToast(message: NSLocalizedString("Reconnecting to server...", comment: "Toast notification"), level: .info)
             }
         }
         connected = false
