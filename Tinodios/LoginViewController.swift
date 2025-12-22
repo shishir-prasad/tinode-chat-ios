@@ -659,10 +659,114 @@ class LoginViewController: UIViewController {
                     }
                 case .failure(let error):
                     UiUtils.toggleProgressOverlay(in: self, visible: false)
-                    UiUtils.showToast(message: "Pre-login failed: \(error.localizedDescription)")
+                    self.handlePreLoginError(error)
                 }
             }
         }
+    }
+
+    // MARK: - PreLogin Error Handling
+
+    private func handlePreLoginError(_ error: Error) {
+        Cache.log.error("PreLogin failed with error: %@", error.localizedDescription)
+
+        let errorInfo = classifyPreLoginError(error)
+
+        // For recoverable errors, show retry option
+        if errorInfo.isRecoverable {
+            let alert = UIAlertController(
+                title: "Connection Error",
+                message: errorInfo.message,
+                preferredStyle: .alert
+            )
+
+            alert.addAction(UIAlertAction(title: "Retry", style: .default) { [weak self] _ in
+                guard let self = self else { return }
+                // Re-trigger login with existing credentials
+                self.loginClicked(self)
+            })
+
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+
+            self.present(alert, animated: true)
+        } else {
+            // For non-recoverable errors, just show toast
+            UiUtils.showToast(message: errorInfo.message)
+        }
+    }
+
+    private func classifyPreLoginError(_ error: Error) -> ErrorClassification {
+        // Check for URL errors (network-related)
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost:
+                return ErrorClassification(
+                    message: "No internet connection. Please check your network and try again.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            case .timedOut:
+                return ErrorClassification(
+                    message: "Request timed out. The server is taking too long to respond. Please try again.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            case .cannotConnectToHost, .cannotFindHost:
+                return ErrorClassification(
+                    message: "Cannot reach authentication server. Please check your connection and try again.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            case .secureConnectionFailed, .serverCertificateUntrusted:
+                return ErrorClassification(
+                    message: "Secure connection failed. Please check your network settings.",
+                    isRecoverable: false,
+                    shouldClearToken: false
+                )
+            default:
+                return ErrorClassification(
+                    message: "Network error occurred. Please check your connection and try again.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            }
+        }
+
+        // Check for NSError with specific domains
+        if let nsError = error as NSError? {
+            // JSON parsing errors from preLogin
+            if nsError.domain == "PreLoginJSONError" {
+                return ErrorClassification(
+                    message: "Server response format is invalid. Please contact support if this persists.",
+                    isRecoverable: false,
+                    shouldClearToken: false
+                )
+            }
+
+            // HTTP status code errors
+            if nsError.domain == NSURLErrorDomain {
+                if nsError.code >= 500 {
+                    return ErrorClassification(
+                        message: "Server is temporarily unavailable. Please try again in a few moments.",
+                        isRecoverable: true,
+                        shouldClearToken: false
+                    )
+                } else if nsError.code >= 400 {
+                    return ErrorClassification(
+                        message: "Authentication request was rejected. Please check your credentials.",
+                        isRecoverable: false,
+                        shouldClearToken: false
+                    )
+                }
+            }
+        }
+
+        // Generic fallback with full error description
+        return ErrorClassification(
+            message: "Pre-login failed: \(error.localizedDescription)",
+            isRecoverable: false,
+            shouldClearToken: false
+        )
     }
 
     private func showOTPVerification(username: String, password: String) {
