@@ -19,7 +19,7 @@ SERVICE_NAME= BrightSide
 SERVICE_NAME = BrightSide
 TOS_URL = qixsecure.com/terms
 PRIVACY_URL = qixsecure.com/privacy
-API_HOST = bvfo-api.saleswarp.com
+API_HOST = fo-wss.saleswarp.com
 APP_ID = QixSecure
 USE_HTTPS = YES
 

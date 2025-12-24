@@ -374,7 +374,7 @@ class LoginViewController: UIViewController {
     // MARK: - Authentication API Methods
 
     private func preLogin(username: String, password: String, completion: @escaping (Result<PreLoginResponse, Error>) -> Void) {
-        guard let url = URL(string: "https://storm.saleswarp.com/bvfo-dev/FinancialUsers/preLogin") else {
+        guard let url = URL(string: "https://bvfo-api.saleswarp.com/FinancialUsers/preLogin") else {
             completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
             return
         }
@@ -453,7 +453,7 @@ class LoginViewController: UIViewController {
     }
 
     private func verifyOTP(username: String, otp: String, completion: @escaping (Result<OTPVerificationResponse, Error>) -> Void) {
-        guard let url = URL(string: "https://storm.saleswarp.com/bvfo-dev/FinancialUsers/verifyOtp") else {
+        guard let url = URL(string: "https://bvfo-api.saleswarp.com/FinancialUsers/verifyOtp") else {
             completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
             return
         }
@@ -493,7 +493,7 @@ class LoginViewController: UIViewController {
     }
 
     private func login(username: String, password: String, completion: @escaping (Result<LoginResponse, Error>) -> Void) {
-        guard let url = URL(string: "https://storm.saleswarp.com/bvfo-dev/FinancialUsers/login") else {
+        guard let url = URL(string: "https://bvfo-api.saleswarp.com/FinancialUsers/login") else {
             completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
             return
         }
