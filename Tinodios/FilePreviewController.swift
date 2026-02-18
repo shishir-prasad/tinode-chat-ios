@@ -26,20 +26,37 @@ class FilePreviewController: UIViewController, UIScrollViewDelegate {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        // Add send button to navigation bar as a reliable alternative
+        let sendBarButton = UIBarButtonItem(title: "Send", style: .done, target: self, action: #selector(sendFileAttachmentFromNavBar))
+        navigationItem.rightBarButtonItem = sendBarButton
+
         setup()
+    }
+
+    @objc private func sendFileAttachmentFromNavBar() {
+        // Post the same notification as the button action
+        Cache.log.info("FilePreview - Send button (nav bar) tapped. File: %@, Size: %d bytes", previewContent?.fileName ?? "unknown", previewContent?.data.count ?? 0)
+        NotificationCenter.default.post(name: Notification.Name(MessageViewController.kNotificationSendAttachment), object: previewContent)
+        Cache.log.info("FilePreview - Notification posted, returning to MessageViewController")
+        // Return to MessageViewController
+        navigationController?.popViewController(animated: true)
     }
 
     @IBOutlet weak var imageView: UIImageView!
     @IBOutlet weak var contentTypeLabel: UILabel!
     @IBOutlet weak var fileNameLabel: UILabel!
     @IBOutlet weak var sizeLabel: UILabel!
+    @IBOutlet weak var sendButton: UIButton!
 
     @IBOutlet weak var previewView: RichTextView!
     @IBOutlet weak var previewViewHeight: NSLayoutConstraint!
 
     @IBAction func sendFileAttachment(_ sender: UIButton) {
         // This notification is received by the MessageViewController.
+        Cache.log.info("FilePreview - Send button tapped. File: %@, Size: %d bytes", previewContent?.fileName ?? "unknown", previewContent?.data.count ?? 0)
         NotificationCenter.default.post(name: Notification.Name(MessageViewController.kNotificationSendAttachment), object: previewContent)
+        Cache.log.info("FilePreview - Notification posted, returning to MessageViewController")
         // Return to MessageViewController.
         navigationController?.popViewController(animated: true)
     }
@@ -64,6 +81,10 @@ class FilePreviewController: UIViewController, UIScrollViewDelegate {
         }
         sizeLabel.text = sizeString
         self.togglePreviewBar(with: content.pendingMessagePreview)
+
+        // Ensure send button is visible and enabled
+        sendButton?.isHidden = false
+        sendButton?.isEnabled = true
 
         setInterfaceColors()
     }

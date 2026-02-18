@@ -14,11 +14,16 @@ import TinodiosDB
 // MARK: - API Response Models
 
 struct PreLoginResponse: Codable {
-    let successes: [String]
-    let warnings: [String]
-    let errors: [String]
-    let debugs: [String]
+    let successes: [String]?
+    let warnings: [String]?
+    let errors: [String]?
+    let debugs: [String]?
     let data: PreLoginData
+}
+
+struct TokenValues:Codable{
+    let token:String?
+    let expires_at:String?
 }
 
 struct PreLoginData: Codable {
@@ -26,7 +31,7 @@ struct PreLoginData: Codable {
     let message: String?
     let requireOtp: Bool?
     let user: UserData?
-    let token: String?
+    let token: TokenValues?
 
     enum CodingKeys: String, CodingKey {
         case success, message
@@ -38,13 +43,6 @@ struct PreLoginData: Codable {
 struct OTPVerificationResponse: Codable {
     let success: Bool
     let message: String
-}
-
-struct LoginResponse: Codable {
-    let success: Bool
-    let user: UserInfo?
-    let token: String?
-    let message: String?
 }
 
 struct UserData: Codable {
@@ -310,8 +308,11 @@ class LoginViewController: UIViewController {
     }
 
     private func setInterfaceColors() {
-        // Use adaptive system background for proper dark mode contrast
-        self.view.backgroundColor = .systemBackground
+        if traitCollection.userInterfaceStyle == .dark {
+            self.view.backgroundColor = .black
+        } else {
+            self.view.backgroundColor = .white
+        }
     }
 
     @objc func keyboardWillShow(_ notification: Notification) {
@@ -373,8 +374,21 @@ class LoginViewController: UIViewController {
 
     // MARK: - Authentication API Methods
 
+    /// Returns the API base URL from configuration (Info.plist via .xcconfig)
+    private var apiBaseURL: String {
+        //  let apiUrl = "https://storm.saleswarp.com/bvfo-dev" 
+        let apiUrl = "https://bvfo-api.saleswarp.com" 
+
+        let useHttps = Bundle.main.object(forInfoDictionaryKey: "USE_HTTPS") as? String
+        let scheme = (useHttps?.uppercased() == "YES") ? "https" : "http"
+
+        // Construct full URL if apiUrl doesn't already include scheme
+        let fullUrl = apiUrl.hasPrefix("http") ? apiUrl : "\(scheme)://\(apiUrl)"
+        return fullUrl
+    }
+
     private func preLogin(username: String, password: String, completion: @escaping (Result<PreLoginResponse, Error>) -> Void) {
-        guard let url = URL(string: "https://bvfo-api.saleswarp.com/FinancialUsers/preLogin") else {
+        guard let url = URL(string: "\(apiBaseURL)/FinancialUsers/preLogin") else {
             completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
             return
         }
@@ -407,11 +421,13 @@ class LoginViewController: UIViewController {
             // Debug: Log raw response for troubleshooting
             if let jsonString = String(data: data, encoding: .utf8) {
                 Cache.log.info("PreLogin API Raw Response: %@", jsonString)
+                Cache.log.info("PreLogin API Raw Response: %@",url as CVarArg )
             }
 
             // Log HTTP response status
             if let httpResponse = response as? HTTPURLResponse {
                 Cache.log.info("PreLogin API Status Code: %d", httpResponse.statusCode)
+                Cache.log.info("PreLogin API response: %d", httpResponse)
             }
 
             do {
@@ -453,7 +469,7 @@ class LoginViewController: UIViewController {
     }
 
     private func verifyOTP(username: String, otp: String, completion: @escaping (Result<OTPVerificationResponse, Error>) -> Void) {
-        guard let url = URL(string: "https://bvfo-api.saleswarp.com/FinancialUsers/verifyOtp") else {
+        guard let url = URL(string: "\(apiBaseURL)/FinancialUsers/verifyOtp") else {
             completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
             return
         }
@@ -474,26 +490,67 @@ class LoginViewController: UIViewController {
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
+                Cache.log.error("VerifyOTP Network Error: %@", error.localizedDescription)
                 completion(.failure(error))
                 return
             }
 
             guard let data = data else {
+                Cache.log.error("VerifyOTP: No data received")
                 completion(.failure(NSError(domain: "No data received", code: -1, userInfo: nil)))
                 return
             }
 
+            // Debug: Log raw response for troubleshooting
+            if let jsonString = String(data: data, encoding: .utf8) {
+                Cache.log.info("VerifyOTP API Raw Response: %@", jsonString)
+            }
+
+            // Log HTTP response status
+            if let httpResponse = response as? HTTPURLResponse {
+                Cache.log.info("VerifyOTP API Status Code: %d", httpResponse.statusCode)
+            }
+
             do {
                 let otpResponse = try JSONDecoder().decode(OTPVerificationResponse.self, from: data)
+                Cache.log.info("VerifyOTP API Decoded Successfully")
                 completion(.success(otpResponse))
             } catch {
-                completion(.failure(error))
+                Cache.log.error("VerifyOTP API JSON Decode Error: %@", error.localizedDescription)
+
+                // Log the exact decoding error details
+                if let decodingError = error as? DecodingError {
+                    switch decodingError {
+                    case .dataCorrupted(let context):
+                        Cache.log.error("Data corrupted: %@", context.debugDescription)
+                    case .keyNotFound(let key, let context):
+                        Cache.log.error("Key '%@' not found: %@", key.stringValue, context.debugDescription)
+                    case .typeMismatch(let type, let context):
+                        Cache.log.error("Type mismatch for type %@: %@", String(describing: type), context.debugDescription)
+                    case .valueNotFound(let type, let context):
+                        Cache.log.error("Value not found for type %@: %@", String(describing: type), context.debugDescription)
+                    @unknown default:
+                        Cache.log.error("Unknown decoding error: %@", error.localizedDescription)
+                    }
+                }
+
+                // Create a more descriptive error for JSON parsing failures
+                let detailedError = NSError(
+                    domain: "VerifyOTPJSONError",
+                    code: -2,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Failed to parse OTP verification response: \(error.localizedDescription)",
+                        NSLocalizedFailureReasonErrorKey: "The server response format is invalid or missing required fields",
+                        NSLocalizedRecoverySuggestionErrorKey: "Please try again or contact support if the problem persists"
+                    ]
+                )
+                completion(.failure(detailedError))
             }
         }.resume()
     }
 
-    private func login(username: String, password: String, completion: @escaping (Result<LoginResponse, Error>) -> Void) {
-        guard let url = URL(string: "https://bvfo-api.saleswarp.com/FinancialUsers/login") else {
+    private func login(username: String, password: String, completion: @escaping (Result<PreLoginResponse, Error>) -> Void) {
+        guard let url = URL(string: "\(apiBaseURL)/FinancialUsers/login") else {
             completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
             return
         }
@@ -514,20 +571,83 @@ class LoginViewController: UIViewController {
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
+                Cache.log.error("Login Network Error: %@", error.localizedDescription)
                 completion(.failure(error))
                 return
             }
 
             guard let data = data else {
+                Cache.log.error("Login: No data received")
                 completion(.failure(NSError(domain: "No data received", code: -1, userInfo: nil)))
                 return
             }
 
+            // Debug: Log raw response for troubleshooting
+            if let jsonString = String(data: data, encoding: .utf8) {
+                Cache.log.info("Login API Raw Response: %@", jsonString)
+            }
+
+            // Log HTTP response status
+            if let httpResponse = response as? HTTPURLResponse {
+                Cache.log.info("Login API Status Code: %d", httpResponse.statusCode)
+            }
+
             do {
-                let loginResponse = try JSONDecoder().decode(LoginResponse.self, from: data)
+                // Try Format 1: Wrapped response with metadata
+                let loginResponse = try JSONDecoder().decode(PreLoginResponse.self, from: data)
+                Cache.log.info("Login API: Decoded wrapped response format successfully")
                 completion(.success(loginResponse))
-            } catch {
-                completion(.failure(error))
+            } catch let wrappedError {
+                Cache.log.info("Login API: Wrapped format failed, trying direct format")
+
+                // Try Format 2: Direct PreLoginData response
+                do {
+                    let directData = try JSONDecoder().decode(PreLoginData.self, from: data)
+
+                    // Wrap in PreLoginResponse structure for compatibility
+                    let wrappedResponse = PreLoginResponse(
+                        successes: [],
+                        warnings: [],
+                        errors: [],
+                        debugs: [],
+                        data: directData
+                    )
+
+                    Cache.log.info("Login API: Decoded direct response format successfully")
+                    completion(.success(wrappedResponse))
+                } catch let directError {
+                    Cache.log.error("Login API: Failed both decode attempts")
+                    Cache.log.error("Wrapped format error: %@", wrappedError.localizedDescription)
+                    Cache.log.error("Direct format error: %@", directError.localizedDescription)
+
+                    // Log the exact decoding error details from the first attempt
+                    if let decodingError = wrappedError as? DecodingError {
+                        switch decodingError {
+                        case .dataCorrupted(let context):
+                            Cache.log.error("Data corrupted: %@", context.debugDescription)
+                        case .keyNotFound(let key, let context):
+                            Cache.log.error("Key '%@' not found: %@", key.stringValue, context.debugDescription)
+                        case .typeMismatch(let type, let context):
+                            Cache.log.error("Type mismatch for type %@: %@", String(describing: type), context.debugDescription)
+                        case .valueNotFound(let type, let context):
+                            Cache.log.error("Value not found for type %@: %@", String(describing: type), context.debugDescription)
+                        @unknown default:
+                            Cache.log.error("Unknown decoding error: %@", wrappedError.localizedDescription)
+                        }
+                    }
+
+                    // Create a more descriptive error for JSON parsing failures
+                    let detailedError = NSError(
+                        domain: "LoginJSONError",
+                        code: -2,
+                        userInfo: [
+                            NSLocalizedDescriptionKey: "Failed to parse login response: \(wrappedError.localizedDescription)",
+                            NSLocalizedFailureReasonErrorKey: "The server response format is invalid or missing required fields",
+                            NSLocalizedRecoverySuggestionErrorKey: "Please try again or contact support if the problem persists"
+                        ]
+                    )
+                    completion(.failure(detailedError))
+                }
             }
         }.resume()
     }
@@ -639,14 +759,16 @@ class LoginViewController: UIViewController {
 
                         if requireOtp {
                             // Show success message first
-                            UiUtils.showToast(message: "OTP sent to your whatsapp. Please check your inbox.")
+                            UiUtils.showToast(message: "OTP sent to your whatsapp. Please check your inbox.",level:.info)
                             // OTP is required, show OTP verification
                             self.showOTPVerification(username: userName, password: password)
                         } else {
                             // No OTP required, check if token is provided in preLogin response
-                            if let token = preLoginResponse.data.token, !token.isEmpty {
+                            if let tokenValues = preLoginResponse.data.token,
+                               let tokenData = tokenValues.token, !tokenData.isEmpty {
                                 // Direct authentication with token from preLogin response
-                                self.performDirectSSO(username: userName, token: token)
+                                let expiryDate = tokenValues.expires_at.flatMap { Formatter.rfc3339.date(from: $0) }
+                                self.performDirectSSO(username: userName, tokenData: tokenData, expires: expiryDate)
                             } else {
                                 // Fallback to separate login call
                                 self.performLogin(username: userName, password: password)
@@ -769,6 +891,80 @@ class LoginViewController: UIViewController {
         )
     }
 
+    private func classifyLoginError(_ error: Error) -> ErrorClassification {
+        // Check for URL errors (network-related)
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost:
+                return ErrorClassification(
+                    message: "No internet connection during login. Please check your network and try again.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            case .timedOut:
+                return ErrorClassification(
+                    message: "Login request timed out. Please try again.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            case .cannotConnectToHost, .cannotFindHost:
+                return ErrorClassification(
+                    message: "Cannot reach server during login. Please check your connection and try again.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            case .secureConnectionFailed, .serverCertificateUntrusted:
+                return ErrorClassification(
+                    message: "Secure connection failed during login. Please check your network settings.",
+                    isRecoverable: false,
+                    shouldClearToken: false
+                )
+            default:
+                return ErrorClassification(
+                    message: "Network error occurred during login. Please try again.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            }
+        }
+
+        // Check for NSError with specific domains
+        if let nsError = error as NSError? {
+            // JSON parsing errors from login
+            if nsError.domain == "LoginJSONError" {
+                return ErrorClassification(
+                    message: "Server response format error. Please try again or contact support.",
+                    isRecoverable: true,
+                    shouldClearToken: false
+                )
+            }
+
+            // HTTP status code errors
+            if nsError.domain == NSURLErrorDomain {
+                if nsError.code >= 500 {
+                    return ErrorClassification(
+                        message: "Server temporarily unavailable during login. Please try again.",
+                        isRecoverable: true,
+                        shouldClearToken: false
+                    )
+                } else if nsError.code >= 400 {
+                    return ErrorClassification(
+                        message: "Login request was rejected. Please check your credentials.",
+                        isRecoverable: false,
+                        shouldClearToken: false
+                    )
+                }
+            }
+        }
+
+        // Generic fallback
+        return ErrorClassification(
+            message: "Login failed: \(error.localizedDescription)",
+            isRecoverable: false,
+            shouldClearToken: false
+        )
+    }
+
     private func showOTPVerification(username: String, password: String) {
         // Dismiss the progress overlay before showing OTP dialog
         UiUtils.toggleProgressOverlay(in: self, visible: false)
@@ -833,19 +1029,23 @@ class LoginViewController: UIViewController {
         }
     }
 
-    private func performLogin(username: String, password: String) {
+    private func performLogin(username: String, password: String, retryCount: Int = 0) {
         login(username: username, password: password) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 switch result {
                 case .success(let loginResponse):
-                    if loginResponse.success, let token = loginResponse.token {
+                    // Access nested data structure from PreLoginResponse
+                    if let success = loginResponse.data.success, success,
+                       let tokenValues = loginResponse.data.token,
+                       let tokenData = tokenValues.token {
                         // Login successful, save user info with validation and proceed with SSO
-                        SharedUtils.saveAuthToken(for: username, token: token, expires: nil) { [weak self] success in
+                        let expiryDate = tokenValues.expires_at.flatMap { Formatter.rfc3339.date(from: $0) }
+                        SharedUtils.saveAuthToken(for: username, token: tokenData, expires: expiryDate) { [weak self] success in
                             guard let self = self else { return }
                             if success {
                                 Cache.log.info("LoginVC - Token saved successfully, proceeding with SSO login")
-                                self.loginWithSSO(token: token)
+                                self.loginWithSSO(token: tokenData)
                             } else {
                                 Cache.log.error("LoginVC - Failed to save auth token, aborting login")
                                 UiUtils.toggleProgressOverlay(in: self, visible: false)
@@ -854,23 +1054,55 @@ class LoginViewController: UIViewController {
                         }
                     } else {
                         UiUtils.toggleProgressOverlay(in: self, visible: false)
-                        UiUtils.showToast(message: loginResponse.message ?? "Login failed")
+                        let message = loginResponse.data.message ?? "Login failed"
+                        UiUtils.showToast(message: message)
                     }
                 case .failure(let error):
-                    UiUtils.toggleProgressOverlay(in: self, visible: false)
-                    UiUtils.showToast(message: "Login failed: \(error.localizedDescription)")
+                    Cache.log.error("Login failed with error: %@", error.localizedDescription)
+
+                    let errorInfo = self.classifyLoginError(error)
+
+                    // For recoverable errors and within retry limit, show retry option
+                    if errorInfo.isRecoverable && retryCount < 3 {
+                        let alert = UIAlertController(
+                            title: "Login Error",
+                            message: errorInfo.message,
+                            preferredStyle: .alert
+                        )
+
+                        alert.addAction(UIAlertAction(title: "Retry", style: .default) { [weak self] _ in
+                            guard let self = self else { return }
+                            Cache.log.info("Retrying login (attempt %d)", retryCount + 1)
+                            self.performLogin(username: username, password: password, retryCount: retryCount + 1)
+                        })
+
+                        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+                            UiUtils.toggleProgressOverlay(in: self, visible: false)
+                        })
+
+                        self.present(alert, animated: true)
+                    } else {
+                        // For non-recoverable errors or exceeded retry limit
+                        UiUtils.toggleProgressOverlay(in: self, visible: false)
+
+                        if retryCount >= 3 {
+                            UiUtils.showToast(message: "Login failed after multiple attempts. Please try again later.")
+                        } else {
+                            UiUtils.showToast(message: errorInfo.message)
+                        }
+                    }
                 }
             }
         }
     }
 
-    private func performDirectSSO(username: String, token: String) {
+    private func performDirectSSO(username: String, tokenData: String, expires: Date?) {
         // Direct SSO authentication using token from preLogin response
-        SharedUtils.saveAuthToken(for: username, token: token, expires: nil) { [weak self] success in
+        SharedUtils.saveAuthToken(for: username, token: tokenData, expires: expires) { [weak self] success in
             guard let self = self else { return }
             if success {
                 Cache.log.info("LoginVC - Token from preLogin saved successfully, proceeding with SSO login")
-                self.loginWithSSO(token: token)
+                self.loginWithSSO(token: tokenData)
             } else {
                 Cache.log.error("LoginVC - Failed to save auth token from preLogin, aborting login")
                 UiUtils.toggleProgressOverlay(in: self, visible: false)

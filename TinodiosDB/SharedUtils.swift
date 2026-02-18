@@ -142,7 +142,7 @@ public class SharedUtils {
         let v = SharedUtils.kAppDefaults.integer(forKey: SharedUtils.kTinodeMetaVersion)
         guard v == SharedUtils.kAppMetaVersion else {
             BaseDb.log.error("App meta version does not match. Saved [%d] vs current [%d]", v, SharedUtils.kAppMetaVersion)
-            // Clear the app keychain.
+            // Clear the app keychain&.
             SharedUtils.kAppKeychain.removeAllKeys()
             SharedUtils.kAppDefaults.set(SharedUtils.kAppMetaVersion, forKey: SharedUtils.kTinodeMetaVersion)
             return false

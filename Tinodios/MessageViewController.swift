@@ -460,13 +460,17 @@ class MessageViewController: UIViewController {
     }
 
     @objc func sendAttachment(notification: NSNotification) {
+        Cache.log.info("MessageVC - Received send attachment notification")
         // Attachment size less base64 expansion and overhead.
         let maxInbandSize = self.maxInbandSize
         switch notification.object {
         case let content as FilePreviewContent:
+            Cache.log.info("MessageVC - File attachment: %@, size: %d bytes, max inband: %lld", content.fileName ?? "unknown", content.data.count, maxInbandSize)
             if content.data.count > maxInbandSize {
+                Cache.log.info("MessageVC - File exceeds inband size, calling uploadFile")
                 self.interactor?.uploadFile(UploadDef(filename: content.fileName, mimeType: content.contentType, data: content.data))
             } else {
+                Cache.log.info("MessageVC - File within inband size, sending directly")
                 _ = interactor?.sendMessage(content: Drafty().attachFile(mime: content.contentType, bits: content.data, fname: content.fileName))
             }
         case let content as ImagePreviewContent:

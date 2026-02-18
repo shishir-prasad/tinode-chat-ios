@@ -674,12 +674,26 @@ class MessageInteractor: DefaultComTopic.Listener, MessageBusinessLogic, Message
     }
 
     private func uploadMessageAttachment(type: AttachmentType, _ def: UploadDef) {
-        guard let mimeType = def.mimeType, let topic = topic else { return }
+        Cache.log.info("MessageInteractor - uploadMessageAttachment called for type: %d, filename: %@", type.rawValue, def.filename ?? "unknown")
+
+        guard let mimeType = def.mimeType else {
+            Cache.log.error("MessageInteractor - Upload failed: mimeType is nil")
+            return
+        }
+
+        guard let topic = topic else {
+            Cache.log.error("MessageInteractor - Upload failed: topic is nil")
+            return
+        }
+
+        Cache.log.info("MessageInteractor - Topic: %@, attached: %@, authenticated: %@", topic.name, topic.attached ? "YES" : "NO", Cache.tinode.isConnectionAuthenticated ? "YES" : "NO")
 
         let filename = def.filename ?? ""
 
         // Check if the attachment is too big even for out-of-band uploads.
-        if def.data.count > Cache.tinode.getServerLimit(for: Tinode.kMaxFileUploadSize, withDefault: MessageViewController.kMaxAttachmentSize) {
+        let maxSize = Cache.tinode.getServerLimit(for: Tinode.kMaxFileUploadSize, withDefault: MessageViewController.kMaxAttachmentSize)
+        Cache.log.info("MessageInteractor - File size: %d bytes, max allowed: %lld bytes", def.data.count, maxSize)
+        if def.data.count > maxSize {
             DispatchQueue.main.async {
                 UiUtils.showToast(message: NSLocalizedString("Attachment exceeds maximum size", comment: "Error message: attachment too large"))
             }
@@ -745,7 +759,9 @@ class MessageInteractor: DefaultComTopic.Listener, MessageBusinessLogic, Message
             head!["mime"] = JSONValue.string(Drafty.kMimeType)
         }
         if let msg = topic.store?.msgDraft(topic: topic, data: content, head: head) {
+            Cache.log.info("MessageInteractor - Draft message created with ID: %lld, starting upload", msg.msgId)
             let helper = Cache.getLargeFileHelper()
+            Cache.log.info("MessageInteractor - Auth token present: %@", Cache.tinode.authToken != nil ? "YES" : "NO")
             struct UploadResult {
                 var result: ServerMessage?
                 var error: Error?

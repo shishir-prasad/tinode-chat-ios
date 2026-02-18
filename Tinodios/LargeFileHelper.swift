@@ -102,12 +102,16 @@ public class LargeFileHelper: NSObject {
     }
 
     public func startMsgAttachmentUpload(filename: String, mimetype: String, data payload: Data, topicId: String, msgId: Int64, progressCallback: ((Float) -> Void)?, completionCallback: @escaping (ServerMessage?, Error?) -> Void) {
+        Cache.log.info("LargeFileHelper - Upload requested: file=%@, mime=%@, size=%d bytes, topic=%@, msgId=%lld", filename, mimetype, payload.count, topicId, msgId)
+
         guard var url = tinode.baseURL(useWebsocketProtocol: false) else {
             Cache.log.error("Upload failed: unable to form upload url")
             completionCallback(nil, Upload.UploadError.invalidState("invalid upload url"))
             return
         }
         url.appendPathComponent("file/u/")
+        Cache.log.info("LargeFileHelper - Upload URL: %@", url.absoluteString)
+
         let upload = Upload(url: url)
         var request = URLRequest(url: url)
 
@@ -117,6 +121,11 @@ public class LargeFileHelper: NSObject {
         request.addValue("multipart/form-data; boundary=\(LargeFileHelper.kBoundary)", forHTTPHeaderField: "Content-Type")
 
         LargeFileHelper.addCommonHeaders(to: &request, using: self.tinode)
+
+        if let headers = request.allHTTPHeaderFields {
+            Cache.log.info("LargeFileHelper - Request headers: %@", headers)
+        }
+        Cache.log.info("LargeFileHelper - Auth token present: %@", tinode.authToken != nil ? "YES" : "NO")
 
         var newData = Data()
         // Id section.

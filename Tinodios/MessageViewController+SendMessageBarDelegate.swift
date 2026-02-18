@@ -106,14 +106,33 @@ extension MessageViewController: UIDocumentPickerDelegate {
     }
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        // See comment in documentPickerWasCancelled().
+        (self.inputAccessoryView as? SendMessageBar)?.inputField.becomeFirstResponder()
+
+        guard let url = urls.first else {
+            Cache.log.error("MessageVC - no URL provided by document picker")
+            return
+        }
+
+        // Request access to security-scoped resource
+        guard url.startAccessingSecurityScopedResource() else {
+            Cache.log.error("MessageVC - failed to access security-scoped resource for file: %@", url.lastPathComponent)
+            DispatchQueue.main.async {
+                UiUtils.showToast(message: NSLocalizedString("Unable to access the selected file", comment: "Error message"))
+            }
+            return
+        }
+
+        // Ensure we stop accessing the security-scoped resource when done
+        defer {
+            url.stopAccessingSecurityScopedResource()
+        }
+
         // Convert file to Data and attach to message
         do {
-            // See comment in documentPickerWasCancelled().
-            (self.inputAccessoryView as? SendMessageBar)?.inputField.becomeFirstResponder()
-
-            let bits = try Data(contentsOf: urls[0], options: .mappedIfSafe)
-            let fname = urls[0].lastPathComponent
-            var mimeType = Utils.mimeForUrl(url: urls[0])
+            let bits = try Data(contentsOf: url, options: .mappedIfSafe)
+            let fname = url.lastPathComponent
+            var mimeType = Utils.mimeForUrl(url: url)
             if mimeType == "application/json" {
                 // Replace JSON mime type with 'application/octet-stream' to avoid collision with Drafty form responses.
                 // Remove this code in 2026.
@@ -128,7 +147,7 @@ extension MessageViewController: UIDocumentPickerDelegate {
             let pendingPreview = (self.inputAccessoryView as! SendMessageBar).pendingPreviewText
             let content = FilePreviewContent(
                 data: bits,
-                refUrl: urls[0],
+                refUrl: url,
                 fileName: fname,
                 contentType: mimeType,
                 size: bits.count,
@@ -137,6 +156,9 @@ extension MessageViewController: UIDocumentPickerDelegate {
             performSegue(withIdentifier: "ShowFilePreview", sender: content)
         } catch {
             Cache.log.error("MessageVC - failed to read file: %@", error.localizedDescription)
+            DispatchQueue.main.async {
+                UiUtils.showToast(message: String(format: NSLocalizedString("Failed to read file: %@", comment: "Error message"), error.localizedDescription))
+            }
         }
     }
 }

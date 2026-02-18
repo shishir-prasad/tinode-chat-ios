@@ -6,7 +6,7 @@
 #include "Pods/Target Support Files/Pods-Tinodios/Pods-Tinodios.release.xcconfig"
 
 // Server URL
-HOST_NAME = fo-wss.saleswarp.com
+HOST_NAME = fochat.saleswarp.com
 // Use TLS (https, wss)
 USE_TLS = YES
 
@@ -19,7 +19,8 @@ SERVICE_NAME= BrightSide
 SERVICE_NAME = BrightSide
 TOS_URL = qixsecure.com/terms
 PRIVACY_URL = qixsecure.com/privacy
-API_HOST = fo-wss.saleswarp.com
+API_HOST = fochat.saleswarp.com
+API_URL = 'https://storm.saleswarp.com/bvfo-dev'
 APP_ID = QixSecure
 USE_HTTPS = YES
 
