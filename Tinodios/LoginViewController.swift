@@ -13,12 +13,37 @@ import TinodiosDB
 
 // MARK: - API Response Models
 
+struct PreLoginDebugEntry: Codable {
+    let message: String?
+}
+
 struct PreLoginResponse: Codable {
     let successes: [String]?
     let warnings: [String]?
     let errors: [String]?
-    let debugs: [String]?
+    let debugs: [PreLoginDebugEntry]?
     let data: PreLoginData
+
+    // Handles two server response shapes:
+    // Format 1 (direct): { "success": true, "user": {...}, "token": {...}, "require_otp": false }
+    // Format 2 (wrapped): { "successes": [], ..., "data": { "success": true, "user": {...}, ... } }
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        successes = try container.decodeIfPresent([String].self, forKey: .successes)
+        warnings  = try container.decodeIfPresent([String].self, forKey: .warnings)
+        errors    = try container.decodeIfPresent([String].self, forKey: .errors)
+        debugs    = try container.decodeIfPresent([PreLoginDebugEntry].self, forKey: .debugs)
+
+        if let wrappedData = try container.decodeIfPresent(PreLoginData.self, forKey: .data) {
+            data = wrappedData          // Format 2: data lives under "data" key
+        } else {
+            data = try PreLoginData(from: decoder)  // Format 1: data fields are at top level
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case successes, warnings, errors, debugs, data
+    }
 }
 
 struct TokenValues:Codable{
@@ -30,7 +55,7 @@ struct PreLoginData: Codable {
     let success: Bool?
     let message: String?
     let requireOtp: Bool?
-    let user: UserData?
+    let user: UserInfo?
     let token: TokenValues?
 
     enum CodingKeys: String, CodingKey {
@@ -45,65 +70,45 @@ struct OTPVerificationResponse: Codable {
     let message: String
 }
 
-struct UserData: Codable {
-    let User: UserInfo?
-
-    // Custom initializer to handle different API response formats
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        // Try to decode the User object directly
-        if let userInfo = try? container.decode(UserInfo.self, forKey: .User) {
-            self.User = userInfo
-        } else {
-            // If User key is missing or invalid, set to nil
-            self.User = nil
-        }
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case User
-    }
-}
 
 struct UserInfo: Codable {
     let id: Int
     let sellerID: String?
     let userKey: String?
-    let created: DateInfo
-    let modified: DateInfo
+    let created: DateInfo?
+    let modified: DateInfo?
     let deletedDate: String?
-    let deleted: Bool
-    let firstname: String
-    let lastname: String
-    let email: String
-    let username: String
-    let nickname: String
-    let password: String
-    let active: Bool
-    let address1: String
-    let address2: String
-    let city: String
-    let state: String
-    let country: String
-    let zipcode: String
+    let deleted: Bool?
+    let firstname: String?
+    let lastname: String?
+    let email: String?
+    let username: String?
+    let nickname: String?
+    let password: String?
+    let active: Bool?
+    let address1: String?
+    let address2: String?
+    let city: String?
+    let state: String?
+    let country: String?
+    let zipcode: String?
     let title: String?
-    let phone: String
+    let phone: String?
     let stationID: String?
-    let apiKey: String
-    let roleID: Int
+    let apiKey: String?
+    let roleID: Int?
     let additionalRoleIDs: String?
     let defaultDashboardID: String?
     let resetPasswordToken: String?
     let tokenCreatedAt: String?
     let passwordChanged: String?
-    let systemUser: Bool
-    let lang: String
+    let systemUser: Bool?
+    let lang: String?
     let baseSupplierID: String?
-    let timezone: String
+    let timezone: String?
     let image: String?
-    let approved: Bool
-    let tinodeUserID: String
+    let approved: Bool?
+    let tinodeUserID: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -376,8 +381,8 @@ class LoginViewController: UIViewController {
 
     /// Returns the API base URL from configuration (Info.plist via .xcconfig)
     private var apiBaseURL: String {
-        //  let apiUrl = "https://storm.saleswarp.com/bvfo-dev" 
-        let apiUrl = "https://bvfo-api.saleswarp.com" 
+         let apiUrl = "https://storm.saleswarp.com/bvfo-dev" 
+        // let apiUrl = "https://bvfo-api.saleswarp.com" 
 
         let useHttps = Bundle.main.object(forInfoDictionaryKey: "USE_HTTPS") as? String
         let scheme = (useHttps?.uppercased() == "YES") ? "https" : "http"
@@ -427,7 +432,6 @@ class LoginViewController: UIViewController {
             // Log HTTP response status
             if let httpResponse = response as? HTTPURLResponse {
                 Cache.log.info("PreLogin API Status Code: %d", httpResponse.statusCode)
-                Cache.log.info("PreLogin API response: %d", httpResponse)
             }
 
             do {
@@ -593,61 +597,17 @@ class LoginViewController: UIViewController {
             }
 
             do {
-                // Try Format 1: Wrapped response with metadata
                 let loginResponse = try JSONDecoder().decode(PreLoginResponse.self, from: data)
-                Cache.log.info("Login API: Decoded wrapped response format successfully")
+                Cache.log.info("Login API: Decoded response successfully")
                 completion(.success(loginResponse))
-            } catch let wrappedError {
-                Cache.log.info("Login API: Wrapped format failed, trying direct format")
-
-                // Try Format 2: Direct PreLoginData response
-                do {
-                    let directData = try JSONDecoder().decode(PreLoginData.self, from: data)
-
-                    // Wrap in PreLoginResponse structure for compatibility
-                    let wrappedResponse = PreLoginResponse(
-                        successes: [],
-                        warnings: [],
-                        errors: [],
-                        debugs: [],
-                        data: directData
-                    )
-
-                    Cache.log.info("Login API: Decoded direct response format successfully")
-                    completion(.success(wrappedResponse))
-                } catch let directError {
-                    Cache.log.error("Login API: Failed both decode attempts")
-                    Cache.log.error("Wrapped format error: %@", wrappedError.localizedDescription)
-                    Cache.log.error("Direct format error: %@", directError.localizedDescription)
-
-                    // Log the exact decoding error details from the first attempt
-                    if let decodingError = wrappedError as? DecodingError {
-                        switch decodingError {
-                        case .dataCorrupted(let context):
-                            Cache.log.error("Data corrupted: %@", context.debugDescription)
-                        case .keyNotFound(let key, let context):
-                            Cache.log.error("Key '%@' not found: %@", key.stringValue, context.debugDescription)
-                        case .typeMismatch(let type, let context):
-                            Cache.log.error("Type mismatch for type %@: %@", String(describing: type), context.debugDescription)
-                        case .valueNotFound(let type, let context):
-                            Cache.log.error("Value not found for type %@: %@", String(describing: type), context.debugDescription)
-                        @unknown default:
-                            Cache.log.error("Unknown decoding error: %@", wrappedError.localizedDescription)
-                        }
-                    }
-
-                    // Create a more descriptive error for JSON parsing failures
-                    let detailedError = NSError(
-                        domain: "LoginJSONError",
-                        code: -2,
-                        userInfo: [
-                            NSLocalizedDescriptionKey: "Failed to parse login response: \(wrappedError.localizedDescription)",
-                            NSLocalizedFailureReasonErrorKey: "The server response format is invalid or missing required fields",
-                            NSLocalizedRecoverySuggestionErrorKey: "Please try again or contact support if the problem persists"
-                        ]
-                    )
-                    completion(.failure(detailedError))
-                }
+            } catch {
+                Cache.log.error("Login API: Failed to decode response: %@", error.localizedDescription)
+                let detailedError = NSError(
+                    domain: "LoginJSONError",
+                    code: -2,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to parse login response: \(error.localizedDescription)"]
+                )
+                completion(.failure(detailedError))
             }
         }.resume()
     }
